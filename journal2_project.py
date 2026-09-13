@@ -6,7 +6,7 @@ from platform_ui import render_external_cta, render_project_hero
 
 
 render_project_hero(
-    "Journal Paper 2",
+    "Publication in press",
     "Reliability and Value-of-Information Planning",
     "Prior and pre-posterior lifecycle decisions for a pipe joint containing a population of growing cracks.",
 )
@@ -30,14 +30,8 @@ st.markdown(
 st.markdown("## Data connection")
 st.markdown(
     """
-The independent application stores its calculation code in GitHub and reads the large
-Monte Carlo POF arrays from the approved public Google Drive folder. A direct upload
-option is also available. The app reads data only and does not modify Drive.
+The independent application reads the large Monte Carlo POF arrays from the approved
+public Google Drive folder. A direct upload option is also available. The app reads
+data only and does not modify Drive.
 """
-)
-
-st.link_button(
-    "View Journal 2 source code on GitHub",
-    "https://github.com/AliAmeri75/pipeline_reliability_J2",
-    width="stretch",
 )

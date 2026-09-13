@@ -6,7 +6,7 @@ from platform_ui import render_external_cta, render_project_hero
 
 
 render_project_hero(
-    "Journal Paper 4",
+    "Risk-informed dynamic decision support",
     "Dynamic Inspection and Maintenance Planning using RL",
     "Train and test state-dependent policies for a single cracked pipe joint using reinforcement learning.",
 )
@@ -42,7 +42,7 @@ annual cost, lifetime, and learning diagnostics.
 """
 )
 st.link_button(
-    "View source code on GitHub",
-    "https://github.com/AliAmeri75/pipeline-rl-planning",
+    "View the published study",
+    "https://doi.org/10.1016/j.ress.2026.113466",
     width="stretch",
 )

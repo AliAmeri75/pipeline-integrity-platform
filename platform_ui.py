@@ -24,7 +24,7 @@ def data_uri(path: Path) -> str:
 
 
 def editable_markdown(filename: str, fallback: str) -> str:
-    """Load page copy from a Markdown file that can be edited on GitHub."""
+    """Load public page copy from a Markdown content file."""
 
     path = CONTENT_DIR / filename
     return path.read_text(encoding="utf-8") if path.exists() else fallback
@@ -61,10 +61,11 @@ def apply_global_style() -> None:
             border: 1px solid #dce5df; border-radius: 14px;
             box-shadow: 0 5px 16px rgba(20,49,32,.06); }
         .brand-logo-ua { width: 360px; }
-        .brand-logo-alirim { width: 122px; margin-left: 1rem; padding: .35rem; }
+        .brand-logo-alirim { width: 180px; margin-left: 1rem; padding: .15rem;
+            object-fit: cover; object-position: center; }
         .brand-logo-compact { height: 84px; margin-bottom: .9rem; }
         .brand-logo-ua.brand-logo-compact { width: 285px; }
-        .brand-logo-alirim.brand-logo-compact { width: 92px; margin-left: .75rem; padding: .25rem; }
+        .brand-logo-alirim.brand-logo-compact { width: 135px; margin-left: .75rem; padding: .1rem; }
         .eyebrow { color: var(--ua-green); font-weight: 900; letter-spacing: .11em;
             text-transform: uppercase; font-size: .76rem; }
         .platform-hero h1, .project-hero h1 { color: var(--ink); font-family: Georgia, serif;
@@ -95,11 +96,13 @@ def apply_global_style() -> None:
         .app-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr));
             gap: 1rem; margin: 1rem 0 1.8rem; }
         .app-card { display: flex; flex-direction: column; min-height: 265px; padding: 1.2rem;
-            color: var(--ink) !important; text-decoration: none !important; background: #fff;
+            color: var(--ink); background: #fff;
             border: 1px solid var(--line); border-top: 5px solid var(--ua-green);
             border-radius: 17px; box-shadow: 0 8px 24px rgba(20,49,32,.07);
             transition: transform .18s ease, box-shadow .18s ease; }
         .app-card:hover { transform: translateY(-4px); box-shadow: 0 15px 32px rgba(20,49,32,.14); }
+        .app-card-main { display: flex; flex: 1; flex-direction: column;
+            color: var(--ink) !important; text-decoration: none !important; }
         .app-number { display: inline-grid; place-items: center; width: 46px; height: 46px;
             color: var(--ua-dark); background: var(--ua-gold); border-radius: 13px;
             font-weight: 950; font-size: 1.05rem; }
@@ -107,6 +110,9 @@ def apply_global_style() -> None:
         .app-card p { color: var(--muted); font-size: .9rem; line-height: 1.48; margin: 0; }
         .app-link { margin-top: auto; padding-top: 1rem; color: var(--ua-green);
             font-weight: 900; font-size: .92rem; }
+        .publication-link { width: fit-content; text-decoration: none !important; }
+        .publication-link:hover { text-decoration: underline !important; }
+        .app-status { color: var(--muted); }
         .external-cta {
             display: flex; align-items: center; justify-content: space-between; gap: 1rem;
             margin: 1.25rem 0; padding: 1.15rem 1.3rem; color: #fff !important;
@@ -147,9 +153,10 @@ def apply_global_style() -> None:
             .person-card img { width: 84px; height: 84px; flex-basis: 84px; }
             .platform-hero, .project-hero { padding: 1.2rem; }
             .brand-logo-ua, .brand-logo-ua.brand-logo-compact {
-                width: calc(100% - 98px); height: 88px; padding: .45rem .6rem; }
+                width: calc(100% - 128px); height: 88px; padding: .45rem .6rem; }
             .brand-logo-alirim, .brand-logo-alirim.brand-logo-compact {
-                width: 88px; height: 88px; margin-left: .5rem; padding: .25rem; }
+                width: 118px; height: 88px; margin-left: .5rem; padding: .1rem;
+                object-fit: cover; object-position: center; }
             .inspection-cta { grid-template-columns: 64px minmax(0,1fr); gap: .85rem;
                 padding: 1rem; }
             .calendar-icon { width: 58px; height: 58px; border-radius: 14px; }
@@ -205,7 +212,8 @@ def render_team(show_contacts: bool = False) -> None:
     )
     yong_contact = (
         '<p class="person-contact"><a href="mailto:yong9@ualberta.ca">'
-        'yong9@ualberta.ca</a></p>'
+        'yong9@ualberta.ca</a><br><a href="https://apps.ualberta.ca/directory/person/yong9" '
+        'target="_blank" rel="noopener noreferrer">University profile</a></p>'
         if show_contacts
         else ""
     )

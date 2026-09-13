@@ -36,12 +36,6 @@ st.markdown(
     )
 )
 
-st.link_button(
-    "View source code on GitHub",
-    "https://github.com/AliAmeri75/pipeline-inspection-app",
-    width="stretch",
-)
-
 st.markdown(
     '<div class="notice"><strong>Research-use notice.</strong> This application is a '
     'decision-support prototype. Its results require engineering review and do not replace '

@@ -1,30 +1,13 @@
-## Applications and source code
+## Research applications
 
-| Research component | Live application | Source repository |
-|---|---|---|
-| Fixed inspection scheduling | [Open app](https://pipeline-inspection-appgit-qjifsvi4zeuyuchaueiuwm.streamlit.app/) | [GitHub](https://github.com/AliAmeri75/pipeline-inspection-app) |
-| Dynamic RL planning | [Open app](https://pipeline-rl-planning.streamlit.app/) | [GitHub](https://github.com/AliAmeri75/pipeline-rl-planning) |
-| Reliability and value of information | [Open app](https://pipeline-reliability-voi.streamlit.app/) | [GitHub](https://github.com/AliAmeri75/pipeline_reliability_J2) |
-| Integrated research platform | [Open platform](https://pipeline-integrity-research.streamlit.app/) | [GitHub](https://github.com/AliAmeri75/pipeline-integrity-platform) |
+| Research component | Application |
+|---|---|
+| Fixed inspection scheduling | [Open application](https://pipeline-inspection-appgit-qjifsvi4zeuyuchaueiuwm.streamlit.app/inspection_planner) |
+| Dynamic RL planning | [Open application](https://pipeline-rl-planning.streamlit.app/) |
+| Reliability and value of information | [Open application](https://pipeline-reliability-voi.streamlit.app/) |
 
-## Editing the platform
-
-The public-facing text is separated from the application code so it can be revised
-directly on GitHub:
-
-- `content/PLATFORM_ABSTRACT.md` controls the research overview on the home page.
-- `content/PUBLICATIONS.md` controls the publication lists and links.
-- `content/DOCUMENTATION.md` controls this documentation section.
-- `home.py` controls the three research cards.
-- `platform_ui.py` controls the ALIRIM and University of Alberta branding, styling, and team cards.
-
-Each scientific application remains in its own repository and deployment. The preferred
-Fixed Inspection Scheduling introduction has been transferred into the integrated
-platform, where it appears alongside the Dynamic RL Planning and Reliability and Value
-of Information introductions. Its launch card opens the standalone simulation page
-directly, avoiding a second introduction. New tabs are required because Streamlit
-Community Cloud runs the platform inside a protected browser frame that cannot load
-another Streamlit application within itself.
+The ALIRIM platform provides a common introduction to each research component and
+opens the corresponding analysis environment in a new browser tab.
 
 ## Data and privacy
 

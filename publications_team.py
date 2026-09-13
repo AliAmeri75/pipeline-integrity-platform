@@ -8,7 +8,7 @@ from platform_ui import editable_markdown, render_project_hero, render_team
 render_project_hero(
     "Research record and resources",
     "Publications, Documentation and Team",
-    "Selected research outputs, source-code documentation, and contact information for the platform developers.",
+    "Selected research outputs, application documentation, and contact information for the platform developers.",
 )
 
 st.markdown("## Team")
