@@ -14,6 +14,8 @@ render_external_cta(
     "https://pipeline-reliability-voi.streamlit.app/simulation",
     "Open the Reliability and VoI App",
     "Open the simulation directly in a new tab to connect the POF datasets and run the analysis.",
+    illustration="voi_ili_calendar.svg",
+    illustration_alt="Inline inspection and calendar planning illustration",
 )
 
 st.markdown("## What this module does")

@@ -124,7 +124,7 @@ def apply_global_style() -> None:
         .external-cta-copy { display: block; flex: 1; }
         .external-cta-detail { display: block; margin-top: .2rem; }
         .external-cta b { color: var(--ua-gold); font-size: 1.8rem; }
-        .inspection-cta {
+        .inspection-cta, .illustrated-cta {
             display: grid; grid-template-columns: 86px minmax(0,1fr) 260px;
             align-items: center; gap: 1.25rem; margin: 1.45rem 0 1.2rem;
             padding: 1.15rem 1.3rem; color: #fff !important;
@@ -134,7 +134,7 @@ def apply_global_style() -> None:
             box-shadow: 0 14px 30px rgba(20,49,32,.2);
             transition: transform .18s ease, box-shadow .18s ease;
         }
-        .inspection-cta:hover { transform: translateY(-3px);
+        .inspection-cta:hover, .illustrated-cta:hover { transform: translateY(-3px);
             box-shadow: 0 18px 38px rgba(20,49,32,.28); }
         .calendar-icon { display: grid; place-items: center; width: 76px; height: 76px;
             color: var(--ua-green); background: var(--ua-gold); border-radius: 18px;
@@ -159,7 +159,8 @@ def apply_global_style() -> None:
             .brand-logo-alirim, .brand-logo-alirim.brand-logo-compact {
                 width: 118px; height: 88px; margin-left: .5rem; padding: .1rem;
                 object-fit: cover; object-position: center; }
-            .inspection-cta { grid-template-columns: 64px minmax(0,1fr); gap: .85rem;
+            .inspection-cta, .illustrated-cta {
+                grid-template-columns: 64px minmax(0,1fr); gap: .85rem;
                 padding: 1rem; }
             .calendar-icon { width: 58px; height: 58px; border-radius: 14px; }
             .calendar-icon svg { width: 34px; height: 34px; }
@@ -249,17 +250,51 @@ def render_project_hero(kicker: str, title: str, description: str) -> None:
     st.markdown(hero, unsafe_allow_html=True)
 
 
-def render_external_cta(url: str, title: str, detail: str) -> None:
+def render_external_cta(
+    url: str,
+    title: str,
+    detail: str,
+    *,
+    illustration: str,
+    illustration_alt: str,
+    feature_icon: str = "calendar",
+) -> None:
+    """Render one illustrated link to an independently deployed application."""
+
     safe_url = html.escape(url, quote=True)
     safe_title = html.escape(title)
     safe_detail = html.escape(detail)
+    safe_alt = html.escape(illustration_alt, quote=True)
     aria_label = html.escape(f"{title} (opens in a new tab)", quote=True)
+    illustration_uri = data_uri(ASSET_DIR / illustration)
+    if feature_icon == "ai":
+        feature_svg = (
+            '<svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">'
+            '<path d="M15 18c0-7 5-12 12-12 5 0 9 3 11 7 5 1 8 5 8 10 0 4-2 8-6 10v8H18v-7c-5-2-8-6-8-11 0-2 1-4 2-6Z" '
+            'fill="white" stroke="currentColor" stroke-width="3"/>'
+            '<circle cx="24" cy="22" r="3" fill="currentColor"/>'
+            '<circle cx="34" cy="22" r="3" fill="currentColor"/>'
+            '<path d="M24 31c3 3 7 3 10 0M28 6V2M15 12l-4-3M40 12l4-3" '
+            'stroke="currentColor" stroke-width="3" stroke-linecap="round"/></svg>'
+        )
+    else:
+        feature_svg = (
+            '<svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">'
+            '<rect x="7" y="10" width="34" height="31" rx="5" fill="white" '
+            'stroke="currentColor" stroke-width="3"/>'
+            '<path d="M7 19h34M16 6v8M32 6v8" stroke="currentColor" '
+            'stroke-width="3.5" stroke-linecap="round"/>'
+            '<path d="m16 30 5 5 11-12" stroke="currentColor" stroke-width="3.5" '
+            'stroke-linecap="round" stroke-linejoin="round"/></svg>'
+        )
     cta = (
-        f'<a class="external-cta" href="{safe_url}" target="_blank" '
+        f'<a class="illustrated-cta" href="{safe_url}" target="_blank" '
         f'rel="noopener noreferrer" aria-label="{aria_label}">'
-        f'<span class="external-cta-copy"><strong>{safe_title}</strong>'
-        f'<span class="external-cta-detail">{safe_detail}</span></span>'
-        '<b aria-hidden="true">↗</b></a>'
+        f'<span class="calendar-icon" aria-hidden="true">{feature_svg}</span>'
+        f'<span><span class="cta-kicker">Start your analysis</span>'
+        f'<strong class="cta-title">{safe_title}<span class="cta-arrow">↗</span></strong>'
+        f'<span class="cta-detail">{safe_detail}</span></span>'
+        f'<img class="ili-picture" src="{illustration_uri}" alt="{safe_alt}"></a>'
     )
     st.markdown(cta, unsafe_allow_html=True)
 

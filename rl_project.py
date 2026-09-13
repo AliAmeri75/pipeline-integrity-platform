@@ -14,6 +14,9 @@ render_external_cta(
     "https://pipeline-rl-planning.streamlit.app/",
     "Open the Reinforcement-Learning Planning App",
     "Open the complete application in a new tab to choose Scenario I or II, train the policy, and inspect the results.",
+    illustration="rl_ili_calendar_ai.svg",
+    illustration_alt="Inline inspection, calendar, and AI planning illustration",
+    feature_icon="ai",
 )
 
 st.markdown("## Planning scenarios")
