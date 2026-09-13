@@ -2,11 +2,19 @@
 
 import streamlit as st
 
-from platform_ui import render_platform_hero, render_team
+from platform_ui import editable_markdown, render_platform_hero, render_team
 
 
 render_platform_hero()
 render_team()
+
+st.markdown('<div class="section-label">Research overview</div>', unsafe_allow_html=True)
+st.markdown(
+    editable_markdown(
+        "PLATFORM_ABSTRACT.md",
+        "Add the platform abstract in `content/PLATFORM_ABSTRACT.md`.",
+    )
+)
 
 st.markdown('<div class="section-label">Research applications</div>', unsafe_allow_html=True)
 st.markdown(
@@ -38,16 +46,6 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-st.markdown("## Platform purpose")
-st.markdown(
-    """
-This platform brings together complementary parts of a pipeline-integrity research
-program. The applications address fixed inspection scheduling, dynamic decisions
-under reinforcement learning, and the economic value of imperfect inspection
-information. Each module retains its own modelling assumptions and documentation
-while sharing a consistent entry point and visual identity.
-"""
-)
 st.markdown(
     '<div class="notice"><strong>Research-use notice.</strong> The applications are '
     'decision-support prototypes. Results require engineering review and do not replace '

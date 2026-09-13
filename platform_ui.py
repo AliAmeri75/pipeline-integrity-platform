@@ -12,6 +12,7 @@ import streamlit as st
 
 APP_DIR = Path(__file__).resolve().parent
 ASSET_DIR = APP_DIR / "assets"
+CONTENT_DIR = APP_DIR / "content"
 
 
 def data_uri(path: Path) -> str:
@@ -20,6 +21,13 @@ def data_uri(path: Path) -> str:
     mime_type = mimetypes.guess_type(path.name)[0] or "application/octet-stream"
     encoded = base64.b64encode(path.read_bytes()).decode("ascii")
     return f"data:{mime_type};base64,{encoded}"
+
+
+def editable_markdown(filename: str, fallback: str) -> str:
+    """Load page copy from a Markdown file that can be edited on GitHub."""
+
+    path = CONTENT_DIR / filename
+    return path.read_text(encoding="utf-8") if path.exists() else fallback
 
 
 def apply_global_style() -> None:
@@ -63,6 +71,9 @@ def apply_global_style() -> None:
             border-radius: 50%; border: 4px solid #fff; outline: 3px solid var(--ua-green); }
         .person-card h3 { color: var(--ink); font-size: 1.13rem; margin: 0 0 .25rem; }
         .person-card p { color: var(--muted); margin: 0; font-size: .9rem; line-height: 1.38; }
+        .person-card .person-contact { margin-top: .45rem; }
+        .person-card a { color: var(--ua-green); font-weight: 800; text-decoration: none; }
+        .person-card a:hover { text-decoration: underline; }
         .section-label { color: var(--ua-green); font-size: .78rem; font-weight: 900;
             letter-spacing: .1em; text-transform: uppercase; margin-top: 1.5rem; }
         .app-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr));
@@ -120,19 +131,32 @@ def render_platform_hero() -> None:
     )
 
 
-def render_team() -> None:
+def render_team(show_contacts: bool = False) -> None:
     mohammadali = data_uri(ASSET_DIR / "mohammadali_ameri.png")
     yong = data_uri(ASSET_DIR / "yong_li.png")
+    mohammadali_contact = (
+        '<p class="person-contact"><a href="mailto:amerifar@ualberta.ca">'
+        'amerifar@ualberta.ca</a><br><a href="https://www.linkedin.com/in/'
+        'mohammad-ali-ameri" target="_blank" rel="noopener">LinkedIn profile</a></p>'
+        if show_contacts
+        else ""
+    )
+    yong_contact = (
+        '<p class="person-contact"><a href="mailto:yong9@ualberta.ca">'
+        'yong9@ualberta.ca</a></p>'
+        if show_contacts
+        else ""
+    )
     st.markdown(
         f"""
         <section class="people-grid" aria-label="Platform developers">
           <article class="person-card">
             <img src="{mohammadali}" alt="Mohammadali Ameri">
-            <div><h3>Mohammadali Ameri</h3><p>Researcher and developer<br>University of Alberta</p></div>
+            <div><h3>Mohammadali Ameri</h3><p>PhD researcher and developer<br>University of Alberta</p>{mohammadali_contact}</div>
           </article>
           <article class="person-card">
             <img src="{yong}" alt="Yong Li">
-            <div><h3>Yong Li</h3><p>Associate Professor and co-developer<br>University of Alberta</p></div>
+            <div><h3>Yong Li</h3><p>Associate Professor and co-developer<br>University of Alberta</p>{yong_contact}</div>
           </article>
         </section>
         """,

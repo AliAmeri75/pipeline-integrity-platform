@@ -4,20 +4,26 @@ A unified Streamlit gateway to three applications developed from the pipeline
 integrity doctoral research of Mohammadali Ameri with Yong Li at the University
 of Alberta.
 
-## Research modules
+## Platform structure
 
-1. **Fixed inspection scheduling** — links to the existing deployed application
-   for multiple pipe joints (Journal Papers 3 and 5).
-2. **Dynamic RL planning** — introduces and links to the maintenance-only and
-   inspection-and-maintenance reinforcement-learning application (Journal Paper 4).
-3. **Reliability and value of information** — runs the Journal 2 prior and
-   pre-posterior analysis using approved NPZ datasets synchronized from a public
-   Google Drive folder or uploaded directly by the user.
+```text
+Pipeline Integrity Research Platform
+├── Home and research overview
+├── Fixed Inspection Scheduling
+│   ├── Introduction
+│   └── Open independent application
+├── Dynamic RL Planning
+│   ├── Introduction
+│   └── Open independent application
+├── Reliability and Value of Information — Journal 2
+│   ├── Introduction
+│   └── Open independent application
+└── Publications, documentation and team
+```
 
-The first two repositories remain independent and operational. This platform
-provides their common introduction and navigation without duplicating their
-scientific code. The Journal 2 calculation is included directly because its
-large data arrays are stored separately.
+Each scientific application has its own GitHub repository and Streamlit
+deployment. This repository provides a consistent introduction, documentation,
+and same-tab launch links without duplicating the scientific models.
 
 ## Run locally
 
@@ -31,15 +37,17 @@ streamlit run streamlit_app.py
 ## Deploy
 
 Deploy `streamlit_app.py` from the repository root on Streamlit Community Cloud.
-No secret is required for a publicly readable Drive folder. The first Journal 2
-run after an app restart must synchronize the required data.
+No secret or large scientific dataset is required by this gateway. Each launch
+page links to the corresponding independently deployed research application.
 
-## Journal 2 data
+## Editable content
 
-`Cost_parallel.py`, `journal2_engine.py`, and the user interface are stored in
-this repository. Only data arrays are downloaded from Drive. See
-[`docs/JOURNAL2_DATA_GUIDE.md`](docs/JOURNAL2_DATA_GUIDE.md) for access,
-filenames, validation, privacy, and capacity guidance.
+- [`content/PLATFORM_ABSTRACT.md`](content/PLATFORM_ABSTRACT.md) controls the
+  short research overview on the home page.
+- [`content/PUBLICATIONS.md`](content/PUBLICATIONS.md) controls selected journal
+  and conference publications.
+- [`content/DOCUMENTATION.md`](content/DOCUMENTATION.md) controls application
+  links, documentation, and editing guidance.
 
 ## Existing applications
 

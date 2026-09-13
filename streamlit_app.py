@@ -38,11 +38,18 @@ journal_two = st.Page(
     icon=":material/monitoring:",
     url_path="reliability-voi",
 )
+publications = st.Page(
+    "publications_team.py",
+    title="Publications, documentation and team",
+    icon=":material/library_books:",
+    url_path="publications-team",
+)
 
 navigation = st.navigation(
     {
         "Platform": [home],
         "Research applications": [inspection, rl_planning, journal_two],
+        "Research resources": [publications],
     }
 )
 navigation.run()
