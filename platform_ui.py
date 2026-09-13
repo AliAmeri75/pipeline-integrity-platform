@@ -121,6 +121,8 @@ def apply_global_style() -> None:
             box-shadow: 0 12px 28px rgba(20,49,32,.18); }
         .external-cta strong { display: block; color: #fff; font-size: 1.32rem; }
         .external-cta span { color: #dfece2; font-size: .9rem; }
+        .external-cta-copy { display: block; flex: 1; }
+        .external-cta-detail { display: block; margin-top: .2rem; }
         .external-cta b { color: var(--ua-gold); font-size: 1.8rem; }
         .inspection-cta {
             display: grid; grid-template-columns: 86px minmax(0,1fr) 260px;
@@ -248,16 +250,18 @@ def render_project_hero(kicker: str, title: str, description: str) -> None:
 
 
 def render_external_cta(url: str, title: str, detail: str) -> None:
-    st.markdown(
-        f"""
-        <a class="external-cta" href="{html.escape(url, quote=True)}" target="_blank"
-           rel="noopener noreferrer" aria-label="{html.escape(title, quote=True)} (opens in a new tab)">
-          <div><strong>{html.escape(title)}</strong><span>{html.escape(detail)}</span></div>
-          <b aria-hidden="true">↗</b>
-        </a>
-        """,
-        unsafe_allow_html=True,
+    safe_url = html.escape(url, quote=True)
+    safe_title = html.escape(title)
+    safe_detail = html.escape(detail)
+    aria_label = html.escape(f"{title} (opens in a new tab)", quote=True)
+    cta = (
+        f'<a class="external-cta" href="{safe_url}" target="_blank" '
+        f'rel="noopener noreferrer" aria-label="{aria_label}">'
+        f'<span class="external-cta-copy"><strong>{safe_title}</strong>'
+        f'<span class="external-cta-detail">{safe_detail}</span></span>'
+        '<b aria-hidden="true">↗</b></a>'
     )
+    st.markdown(cta, unsafe_allow_html=True)
 
 
 def render_inspection_cta(url: str) -> None:

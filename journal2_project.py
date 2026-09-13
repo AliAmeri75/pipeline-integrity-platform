@@ -11,9 +11,9 @@ render_project_hero(
     "Prior and pre-posterior lifecycle decisions for a pipe joint containing a population of growing cracks.",
 )
 render_external_cta(
-    "https://pipeline-reliability-voi.streamlit.app/",
+    "https://pipeline-reliability-voi.streamlit.app/simulation",
     "Open the Reliability and VoI App",
-    "Open the complete application in a new tab to connect the POF datasets and run the Journal 2 simulation.",
+    "Open the simulation directly in a new tab to connect the POF datasets and run the analysis.",
 )
 
 st.markdown("## What this module does")
