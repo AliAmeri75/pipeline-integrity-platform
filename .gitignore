@@ -1,0 +1,9 @@
+.DS_Store
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Journal 2 POF arrays are synchronized at runtime and must not be committed.
+Data_CC/
+runtime_data/

@@ -1,0 +1,22 @@
+{
+  "templates": [
+    {
+      "id": 1,
+      "source_index": 0,
+      "label": "Type 1",
+      "initial_depth_mm": 1.5
+    },
+    {
+      "id": 2,
+      "source_index": 1,
+      "label": "Type 2",
+      "initial_depth_mm": 2.0
+    },
+    {
+      "id": 3,
+      "source_index": 2,
+      "label": "Type 3",
+      "initial_depth_mm": 2.5
+    }
+  ]
+}
