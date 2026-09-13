@@ -13,7 +13,7 @@ render_project_hero(
 render_external_cta(
     "https://pipeline-rl-planning.streamlit.app/",
     "Open the Reinforcement-Learning Planning App",
-    "Continue in this browser tab to choose Scenario I or II, train the policy, and inspect the results.",
+    "Open the complete application in a new tab to choose Scenario I or II, train the policy, and inspect the results.",
 )
 
 st.markdown("## Planning scenarios")

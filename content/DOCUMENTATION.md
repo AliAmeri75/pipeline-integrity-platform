@@ -19,8 +19,10 @@ directly on GitHub:
 - `platform_ui.py` controls the ALIRIM and University of Alberta branding, styling, and team cards.
 
 Each scientific application remains in its own repository and deployment. The
-integrated platform provides introductions and same-tab launch links, which keeps the
-models independently maintainable while giving users one consistent entry point.
+integrated platform provides introductions and reliable new-tab launch links, which
+keeps the models independently maintainable while giving users one consistent entry
+point. New tabs are required because Streamlit Community Cloud runs the platform inside
+a protected browser frame that cannot load another Streamlit application within itself.
 
 ## Data and privacy
 

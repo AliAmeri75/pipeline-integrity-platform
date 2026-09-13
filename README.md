@@ -25,7 +25,7 @@ ALIRIM — Asset Lifecycle Intelligence for Risk & Integrity Management
 
 Each scientific application has its own GitHub repository and Streamlit
 deployment. This repository provides a consistent introduction, documentation,
-and same-tab launch links without duplicating the scientific models.
+and new-tab launch links without duplicating the scientific models.
 
 ## Run locally
 
@@ -40,7 +40,8 @@ streamlit run streamlit_app.py
 
 Deploy `streamlit_app.py` from the repository root on Streamlit Community Cloud.
 No secret or large scientific dataset is required by this gateway. Each launch
-page links to the corresponding independently deployed research application.
+page opens the corresponding independently deployed research application in a new
+tab, avoiding Streamlit's cross-origin frame restriction.
 
 ## Editable content
 

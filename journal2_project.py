@@ -13,7 +13,7 @@ render_project_hero(
 render_external_cta(
     "https://pipeline-reliability-voi.streamlit.app/",
     "Open the Reliability and VoI App",
-    "Continue in this browser tab to connect the POF datasets and run the Journal 2 simulation.",
+    "Open the complete application in a new tab to connect the POF datasets and run the Journal 2 simulation.",
 )
 
 st.markdown("## What this module does")

@@ -13,7 +13,7 @@ render_project_hero(
 render_external_cta(
     "https://pipeline-inspection-appgit-qjifsvi4zeuyuchaueiuwm.streamlit.app/",
     "Open the Inspection Scheduling App",
-    "Continue in this browser tab to define joints, intervals, costs, and reliability assumptions.",
+    "Open the complete application in a new tab to define joints, intervals, costs, and reliability assumptions.",
 )
 
 st.markdown("## What this module does")

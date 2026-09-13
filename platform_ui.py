@@ -214,9 +214,10 @@ def render_project_hero(kicker: str, title: str, description: str) -> None:
 def render_external_cta(url: str, title: str, detail: str) -> None:
     st.markdown(
         f"""
-        <a class="external-cta" href="{html.escape(url, quote=True)}" target="_self">
+        <a class="external-cta" href="{html.escape(url, quote=True)}" target="_blank"
+           rel="noopener noreferrer" aria-label="{html.escape(title, quote=True)} (opens in a new tab)">
           <div><strong>{html.escape(title)}</strong><span>{html.escape(detail)}</span></div>
-          <b aria-hidden="true">→</b>
+          <b aria-hidden="true">↗</b>
         </a>
         """,
         unsafe_allow_html=True,
