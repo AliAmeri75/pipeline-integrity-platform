@@ -61,11 +61,13 @@ def apply_global_style() -> None:
             border: 1px solid #dce5df; border-radius: 14px;
             box-shadow: 0 5px 16px rgba(20,49,32,.06); }
         .brand-logo-ua { width: 360px; }
-        .brand-logo-alirim { width: 180px; margin-left: 1rem; padding: .15rem;
-            object-fit: cover; object-position: center; }
+        .brand-logo-alirim { position: absolute; top: 1.55rem; right: 1.75rem;
+            width: 250px; height: 128px; margin: 0; padding: .08rem;
+            object-fit: cover; object-position: center; z-index: 2; }
         .brand-logo-compact { height: 84px; margin-bottom: .9rem; }
         .brand-logo-ua.brand-logo-compact { width: 285px; }
-        .brand-logo-alirim.brand-logo-compact { width: 135px; margin-left: .75rem; padding: .1rem; }
+        .brand-logo-alirim.brand-logo-compact { top: 1.3rem; right: 1.5rem;
+            width: 210px; height: 100px; margin: 0; padding: .06rem; }
         .eyebrow { color: var(--ua-green); font-weight: 900; letter-spacing: .11em;
             text-transform: uppercase; font-size: .76rem; }
         .platform-hero h1, .project-hero h1 { color: var(--ink); font-family: Georgia, serif;
@@ -155,10 +157,10 @@ def apply_global_style() -> None:
             .person-card img { width: 84px; height: 84px; flex-basis: 84px; }
             .platform-hero, .project-hero { padding: 1.2rem; }
             .brand-logo-ua, .brand-logo-ua.brand-logo-compact {
-                width: calc(100% - 128px); height: 88px; padding: .45rem .6rem; }
+                width: calc(100% - 160px); height: 88px; padding: .45rem .6rem; }
             .brand-logo-alirim, .brand-logo-alirim.brand-logo-compact {
-                width: 118px; height: 88px; margin-left: .5rem; padding: .1rem;
-                object-fit: cover; object-position: center; }
+                top: 1.2rem; right: 1.2rem; width: 148px; height: 88px;
+                margin: 0; padding: .05rem; object-fit: cover; object-position: center; }
             .inspection-cta, .illustrated-cta {
                 grid-template-columns: 64px minmax(0,1fr); gap: .85rem;
                 padding: 1rem; }
