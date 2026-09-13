@@ -20,12 +20,14 @@ st.markdown('<div class="section-label">Research applications</div>', unsafe_all
 st.markdown(
     """
     <section class="app-grid" aria-label="Research applications">
-      <a class="app-card" href="inspection" target="_self">
+      <a class="app-card"
+         href="https://pipeline-inspection-appgit-qjifsvi4zeuyuchaueiuwm.streamlit.app/"
+         target="_blank" rel="noopener noreferrer">
         <span class="app-number">I</span>
         <h3>Fixed Inspection Scheduling</h3>
         <p>Compare candidate inspection intervals for multiple pipe joints using
         Monte Carlo deterioration, reliability criteria, repair actions, and lifecycle costs.</p>
-        <span class="app-link">Journal Papers 3 and 5 →</span>
+        <span class="app-link">Open standalone introduction and application ↗</span>
       </a>
       <a class="app-card" href="rl-planning" target="_self">
         <span class="app-number">II</span>

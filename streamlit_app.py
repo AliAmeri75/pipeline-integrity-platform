@@ -14,17 +14,15 @@ st.set_page_config(
 )
 apply_global_style()
 
+INSPECTION_APP_URL = (
+    "https://pipeline-inspection-appgit-qjifsvi4zeuyuchaueiuwm.streamlit.app/"
+)
+
 home = st.Page(
     "home.py",
     title="ALIRIM introduction",
     icon=":material/home:",
     default=True,
-)
-inspection = st.Page(
-    "inspection_project.py",
-    title="Fixed inspection scheduling",
-    icon=":material/calendar_month:",
-    url_path="inspection",
 )
 rl_planning = st.Page(
     "rl_project.py",
@@ -48,8 +46,16 @@ publications = st.Page(
 navigation = st.navigation(
     {
         "ALIRIM": [home],
-        "Research applications": [inspection, rl_planning, journal_two],
+        "Research applications": [rl_planning, journal_two],
         "Research resources": [publications],
     }
+)
+st.sidebar.markdown("#### Standalone application")
+st.sidebar.page_link(
+    INSPECTION_APP_URL,
+    label="Fixed inspection scheduling ↗",
+    icon=":material/calendar_month:",
+    help="Open the inspection scheduling introduction and application in a new tab.",
+    width="stretch",
 )
 navigation.run()
