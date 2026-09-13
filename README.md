@@ -12,7 +12,8 @@ University of Alberta.
 ALIRIM — Asset Lifecycle Intelligence for Risk & Integrity Management
 ├── Home and research overview
 ├── Fixed Inspection Scheduling
-│   └── Open standalone introduction and application
+│   ├── Integrated introduction
+│   └── Open standalone simulation directly
 ├── Dynamic RL Planning
 │   ├── Introduction
 │   └── Open independent application
@@ -24,9 +25,9 @@ ALIRIM — Asset Lifecycle Intelligence for Risk & Integrity Management
 
 Each scientific application has its own GitHub repository and Streamlit
 deployment. This repository provides a consistent gateway, documentation, and
-new-tab launch links without duplicating the scientific models. Fixed Inspection
-Scheduling opens its existing standalone introduction directly; the integrated
-platform provides overview pages for the other research applications.
+new-tab launch links without duplicating the scientific models. The preferred Fixed
+Inspection Scheduling introduction is included here, and its button opens the
+standalone simulation directly so users do not pass through two introductions.
 
 ## Run locally
 

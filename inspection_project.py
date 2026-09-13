@@ -2,32 +2,50 @@
 
 import streamlit as st
 
-from platform_ui import render_external_cta, render_project_hero
+from platform_ui import (
+    editable_markdown,
+    render_inspection_cta,
+    render_project_hero,
+    render_team,
+)
 
 
 render_project_hero(
-    "Journal Papers 3 and 5",
+    "Reliability-based pipeline integrity planning",
     "Fixed Inspection Scheduling",
-    "Reliability- and risk-informed comparison of equidistant inspection intervals for multiple pipe joints.",
+    "Interactive decision support for comparing fixed inspection intervals across multiple pipe joints under deterioration, inspection uncertainty, repair actions, failure risk, and life-cycle cost.",
 )
-render_external_cta(
-    "https://pipeline-inspection-appgit-qjifsvi4zeuyuchaueiuwm.streamlit.app/",
-    "Open the Inspection Scheduling App",
-    "Open the complete application in a new tab to define joints, intervals, costs, and reliability assumptions.",
+render_team()
+render_inspection_cta(
+    "https://pipeline-inspection-appgit-qjifsvi4zeuyuchaueiuwm.streamlit.app/inspection_planner"
 )
 
-st.markdown("## What this module does")
+st.markdown('<div class="section-label">Project abstract</div>', unsafe_allow_html=True)
 st.markdown(
-    """
-- Represents multiple pipe joints, including statistically identical joint groups.
-- Supports one or more initial cracks and initially crack-free joints.
-- Models uncertain crack initiation, crack growth, inspection detection, sizing error, and repair.
-- Compares candidate fixed intervals using expected lifecycle cost and leak/burst criteria.
-- Provides tables, figures, and downloadable results for reporting and sensitivity analysis.
-"""
+    editable_markdown(
+        "INSPECTION_ABSTRACT.md",
+        "Add the inspection project abstract in `content/INSPECTION_ABSTRACT.md`.",
+    )
 )
+
+st.divider()
+st.markdown(
+    editable_markdown(
+        "INSPECTION_DOCUMENTATION.md",
+        "Add the inspection documentation in `content/INSPECTION_DOCUMENTATION.md`.",
+    )
+)
+
 st.link_button(
     "View source code on GitHub",
     "https://github.com/AliAmeri75/pipeline-inspection-app",
     width="stretch",
+)
+
+st.markdown(
+    '<div class="notice"><strong>Research-use notice.</strong> This application is a '
+    'decision-support prototype. Its results require engineering review and do not replace '
+    'ILI vendor validation, applicable codes, regulatory requirements, or an operator’s '
+    'integrity-management procedures.</div>',
+    unsafe_allow_html=True,
 )

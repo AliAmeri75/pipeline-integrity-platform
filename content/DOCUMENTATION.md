@@ -18,11 +18,11 @@ directly on GitHub:
 - `home.py` controls the three research cards.
 - `platform_ui.py` controls the ALIRIM and University of Alberta branding, styling, and team cards.
 
-Each scientific application remains in its own repository and deployment. Fixed
-Inspection Scheduling already has its preferred introduction in the standalone
-application, so both the home-page card and sidebar link open that introduction
-directly. The integrated platform retains its overview pages for Dynamic RL Planning
-and Reliability and Value of Information. New tabs are required because Streamlit
+Each scientific application remains in its own repository and deployment. The preferred
+Fixed Inspection Scheduling introduction has been transferred into the integrated
+platform, where it appears alongside the Dynamic RL Planning and Reliability and Value
+of Information introductions. Its launch card opens the standalone simulation page
+directly, avoiding a second introduction. New tabs are required because Streamlit
 Community Cloud runs the platform inside a protected browser frame that cannot load
 another Streamlit application within itself.
 
