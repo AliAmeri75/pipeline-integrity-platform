@@ -16,7 +16,7 @@ directly on GitHub:
 - `content/PUBLICATIONS.md` controls the publication lists and links.
 - `content/DOCUMENTATION.md` controls this documentation section.
 - `home.py` controls the three research cards.
-- `platform_ui.py` controls the University of Alberta styling and team cards.
+- `platform_ui.py` controls the ALIRIM and University of Alberta branding, styling, and team cards.
 
 Each scientific application remains in its own repository and deployment. The
 integrated platform provides introductions and same-tab launch links, which keeps the

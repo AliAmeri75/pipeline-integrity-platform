@@ -1,13 +1,15 @@
-# Pipeline Integrity Research Platform
+# ALIRIM
 
-A unified Streamlit gateway to three applications developed from the pipeline
-integrity doctoral research of Mohammadali Ameri with Yong Li at the University
-of Alberta.
+**Asset Lifecycle Intelligence for Risk & Integrity Management**
+
+A unified Streamlit gateway for the Pipeline Integrity Research Platform,
+developed from the doctoral research of Mohammadali Ameri with Yong Li at the
+University of Alberta.
 
 ## Platform structure
 
 ```text
-Pipeline Integrity Research Platform
+ALIRIM — Asset Lifecycle Intelligence for Risk & Integrity Management
 ├── Home and research overview
 ├── Fixed Inspection Scheduling
 │   ├── Introduction

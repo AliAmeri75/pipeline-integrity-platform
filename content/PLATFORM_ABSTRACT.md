@@ -1,4 +1,5 @@
-The Pipeline Integrity Research Platform brings together decision-support tools
+**ALIRIM — Asset Lifecycle Intelligence for Risk & Integrity Management** brings
+together decision-support tools
 developed through doctoral research at the University of Alberta. The work focuses on
 risk-informed inspection and maintenance planning for pipelines affected by cracking,
 including uncertain crack initiation and growth, imperfect inspection information,

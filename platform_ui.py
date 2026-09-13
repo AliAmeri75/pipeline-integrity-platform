@@ -36,6 +36,7 @@ def apply_global_style() -> None:
         <style>
         :root {
             --ua-green: #275d38; --ua-dark: #173d27; --ua-gold: #ffdb05;
+            --alirim-blue: #155987; --alirim-navy: #0f426d;
             --ink: #14251c; --muted: #5b6961; --line: #d8e2da;
         }
         .stApp { background: linear-gradient(180deg, #f1f5ef 0, #fff 30rem); }
@@ -53,12 +54,27 @@ def apply_global_style() -> None:
             right: -72px; top: -92px; border-radius: 50%;
             background: var(--ua-gold); opacity: .76;
         }
-        .brand-logo { width: 245px; max-width: 58%; height: auto; display: block; margin-bottom: 1.1rem; }
+        .platform-hero > *, .project-hero > * { position: relative; z-index: 1; }
+        .brand-logo-ua, .brand-logo-alirim { box-sizing: border-box; display: inline-block;
+            vertical-align: middle; height: 112px; object-fit: contain; margin-bottom: 1.15rem;
+            padding: .65rem 1rem; background: #fff;
+            border: 1px solid #dce5df; border-radius: 14px;
+            box-shadow: 0 5px 16px rgba(20,49,32,.06); }
+        .brand-logo-ua { width: 360px; }
+        .brand-logo-alirim { width: 122px; margin-left: 1rem; padding: .35rem; }
+        .brand-logo-compact { height: 84px; margin-bottom: .9rem; }
+        .brand-logo-ua.brand-logo-compact { width: 285px; }
+        .brand-logo-alirim.brand-logo-compact { width: 92px; margin-left: .75rem; padding: .25rem; }
         .eyebrow { color: var(--ua-green); font-weight: 900; letter-spacing: .11em;
             text-transform: uppercase; font-size: .76rem; }
         .platform-hero h1, .project-hero h1 { color: var(--ink); font-family: Georgia, serif;
             font-weight: 500; font-size: clamp(2rem,4vw,3.35rem); line-height: 1.06;
             margin: .38rem 0 .66rem; max-width: 900px; }
+        .platform-hero h1 { color: var(--alirim-navy); font-weight: 800;
+            letter-spacing: .025em; margin-bottom: .15rem; }
+        .platform-name { color: var(--ink); font-family: Georgia, serif; font-weight: 700;
+            font-size: clamp(1.18rem,2.2vw,1.65rem); line-height: 1.25;
+            margin: 0 0 .8rem; max-width: 850px; }
         .platform-hero p, .project-hero p { color: var(--muted); font-size: 1.02rem;
             max-width: 850px; margin: 0; }
         .credit-line { color: var(--ink); font-size: .92rem; font-weight: 800; margin-top: 1rem; }
@@ -107,6 +123,10 @@ def apply_global_style() -> None:
             .people-grid { grid-template-columns: 1fr; }
             .person-card img { width: 84px; height: 84px; flex-basis: 84px; }
             .platform-hero, .project-hero { padding: 1.2rem; }
+            .brand-logo-ua, .brand-logo-ua.brand-logo-compact {
+                width: calc(100% - 98px); height: 88px; padding: .45rem .6rem; }
+            .brand-logo-alirim, .brand-logo-alirim.brand-logo-compact {
+                width: 88px; height: 88px; margin-left: .5rem; padding: .25rem; }
         }
         </style>
         """,
@@ -114,21 +134,35 @@ def apply_global_style() -> None:
     )
 
 
-def render_platform_hero() -> None:
-    logo = data_uri(ASSET_DIR / "university_of_alberta_logo.svg")
-    st.markdown(
-        f"""
-        <section class="platform-hero">
-          <img class="brand-logo" src="{logo}" alt="University of Alberta">
-          <div class="eyebrow">Pipeline integrity research</div>
-          <h1>Pipeline Integrity Research Platform</h1>
-          <p>A unified gateway to reliability, inspection, maintenance, and
-          value-of-information tools developed from doctoral research.</p>
-          <div class="credit-line">Developed by Mohammadali Ameri and Yong Li</div>
-        </section>
-        """,
-        unsafe_allow_html=True,
+def brand_logos(*, compact: bool = False) -> str:
+    """Return the paired ALIRIM and University of Alberta brand marks."""
+
+    ua_logo = data_uri(ASSET_DIR / "university_of_alberta_logo.svg")
+    alirim_logo = data_uri(ASSET_DIR / "alirim_logo.jpeg")
+    compact_class = " brand-logo-compact" if compact else ""
+    return (
+        f'<img class="brand-logo-ua{compact_class}" src="{ua_logo}" '
+        'alt="University of Alberta">'
+        f'<img class="brand-logo-alirim{compact_class}" src="{alirim_logo}" '
+        'alt="ALIRIM">'
     )
+
+
+def render_platform_hero() -> None:
+    logos = brand_logos()
+    hero = (
+        '<section class="platform-hero">'
+        f'{logos}'
+        '<div class="eyebrow">Pipeline Integrity Research Platform</div>'
+        '<h1>ALIRIM</h1>'
+        '<div class="platform-name">Asset Lifecycle Intelligence for Risk &amp; '
+        'Integrity Management</div>'
+        '<p>A unified gateway to reliability, inspection, maintenance, and '
+        'value-of-information tools developed from doctoral research.</p>'
+        '<div class="credit-line">Developed by Mohammadali Ameri and Yong Li</div>'
+        '</section>'
+    )
+    st.markdown(hero, unsafe_allow_html=True)
 
 
 def render_team(show_contacts: bool = False) -> None:
@@ -165,16 +199,16 @@ def render_team(show_contacts: bool = False) -> None:
 
 
 def render_project_hero(kicker: str, title: str, description: str) -> None:
-    st.markdown(
-        f"""
-        <section class="project-hero">
-          <div class="eyebrow">{html.escape(kicker)}</div>
-          <h1>{html.escape(title)}</h1>
-          <p>{html.escape(description)}</p>
-        </section>
-        """,
-        unsafe_allow_html=True,
+    logos = brand_logos(compact=True)
+    hero = (
+        '<section class="project-hero">'
+        f'{logos}'
+        f'<div class="eyebrow">{html.escape(kicker)}</div>'
+        f'<h1>{html.escape(title)}</h1>'
+        f'<p>{html.escape(description)}</p>'
+        '</section>'
     )
+    st.markdown(hero, unsafe_allow_html=True)
 
 
 def render_external_cta(url: str, title: str, detail: str) -> None:

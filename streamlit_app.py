@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Entrypoint for the Pipeline Integrity Research Platform."""
+"""Entrypoint for ALIRIM."""
 
 import streamlit as st
 
@@ -7,7 +7,7 @@ from platform_ui import apply_global_style
 
 
 st.set_page_config(
-    page_title="Pipeline Integrity Research Platform",
+    page_title="ALIRIM | Risk & Integrity Management",
     page_icon="🛠️",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -16,7 +16,7 @@ apply_global_style()
 
 home = st.Page(
     "home.py",
-    title="Platform introduction",
+    title="ALIRIM introduction",
     icon=":material/home:",
     default=True,
 )
@@ -47,7 +47,7 @@ publications = st.Page(
 
 navigation = st.navigation(
     {
-        "Platform": [home],
+        "ALIRIM": [home],
         "Research applications": [inspection, rl_planning, journal_two],
         "Research resources": [publications],
     }
