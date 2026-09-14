@@ -22,19 +22,19 @@ home = st.Page(
 )
 inspection = st.Page(
     "inspection_project.py",
-    title="Fixed inspection scheduling",
+    title="Fixed inspection scheduling using Bayesian",
     icon=":material/calendar_month:",
     url_path="inspection",
 )
 rl_planning = st.Page(
     "rl_project.py",
-    title="Dynamic RL planning",
+    title="Dynamic inspection scheduling using RL",
     icon=":material/model_training:",
     url_path="rl-planning",
 )
 journal_two = st.Page(
     "journal2_project.py",
-    title="Reliability and VoI",
+    title="Inspection Scheduling using VoI",
     icon=":material/monitoring:",
     url_path="reliability-voi",
 )
