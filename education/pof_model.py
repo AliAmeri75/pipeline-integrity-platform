@@ -266,6 +266,67 @@ def normal_pdf_curve(mean: float, standard_deviation: float) -> tuple[np.ndarray
     return x_values, density
 
 
+def limit_state_density_curve(
+    margins_psi: np.ndarray, *, maximum_bins_per_side: int = 18
+) -> list[dict[str, float | int | str]]:
+    """Build a density curve with zero as the exact failure boundary.
+
+    The negative and positive samples are binned separately so no plotted bin
+    can mix ``g <= 0`` failures with ``g > 0`` non-failures.  Density is
+    normalized by the total sample count, so the combined area is one and the
+    red-side area is the Monte Carlo POF estimate.
+    """
+
+    values = np.asarray(margins_psi, dtype=float)
+    values = values[np.isfinite(values)]
+    if values.size == 0:
+        raise ValueError("At least one finite limit-state margin is required.")
+    if maximum_bins_per_side < 2:
+        raise ValueError("At least two bins per side are required.")
+
+    total = values.size
+    records: list[dict[str, float | int | str]] = []
+    sides = (
+        (values[values <= 0.0], "Failed sample (g ≤ 0)", True),
+        (values[values > 0.0], "Non-failed sample (g > 0)", False),
+    )
+    overall_scale = max(float(np.std(values)), 1.0)
+
+    for side_values, label, is_failure in sides:
+        if side_values.size == 0:
+            continue
+        bin_count = min(
+            maximum_bins_per_side,
+            max(4, int(np.ceil(np.sqrt(side_values.size)))),
+        )
+        if is_failure:
+            lower = float(np.min(side_values))
+            if lower == 0.0:
+                lower = -overall_scale
+            edges = np.linspace(lower, 0.0, bin_count + 1)
+        else:
+            upper = float(np.max(side_values))
+            if upper == 0.0:
+                upper = overall_scale
+            edges = np.linspace(0.0, upper, bin_count + 1)
+
+        counts, _ = np.histogram(side_values, bins=edges)
+        widths = np.diff(edges)
+        density = counts / (total * widths)
+        for index, count in enumerate(counts):
+            records.append(
+                {
+                    "center_psi": float((edges[index] + edges[index + 1]) / 2.0),
+                    "lower_psi": float(edges[index]),
+                    "upper_psi": float(edges[index + 1]),
+                    "density": float(density[index]),
+                    "sample_count": int(count),
+                    "outcome": label,
+                }
+            )
+    return records
+
+
 def classroom_interpretation(probability_of_failure: float) -> tuple[str, str]:
     """Return a deliberately illustrative, non-code-based learning prompt."""
 
@@ -274,4 +335,3 @@ def classroom_interpretation(probability_of_failure: float) -> tuple[str, str]:
     if probability_of_failure < 1e-3:
         return "Intermediate relative result", "Review the inputs and consider targeted inspection."
     return "Elevated relative result", "Escalate for engineering assessment and compare mitigation options."
-

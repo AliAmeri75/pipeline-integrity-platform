@@ -5,6 +5,7 @@ from __future__ import annotations
 import csv
 import io
 
+import altair as alt
 import pandas as pd
 import streamlit as st
 
@@ -13,6 +14,7 @@ from education.pof_model import (
     UncertaintyInputs,
     classroom_interpretation,
     corlas_failure_pressure,
+    limit_state_density_curve,
     normal_pdf_curve,
     simulate_probability_of_failure,
 )
@@ -167,6 +169,93 @@ with visualize_tab:
         pof_1.metric("Estimated POF", f"{pof:.3e}")
         pof_2.metric("Failure samples", f"{result['failures']:,}")
         pof_3.metric("Total samples", f"{result['samples']:,}")
+        st.markdown("#### Limit-state POF curve")
+        st.markdown(
+            f"**POF = failed samples ÷ all samples = "
+            f"{result['failures']:,} ÷ {result['samples']:,} = {pof:.3e}.** "
+            "The red part is the area where **g ≤ 0**."
+        )
+        density_frame = pd.DataFrame(
+            limit_state_density_curve(result["margins_psi"])
+        )
+        failure_label = "Failed sample (g ≤ 0)"
+        non_failure_label = "Non-failed sample (g > 0)"
+        minimum_margin = min(float(density_frame["lower_psi"].min()), 0.0)
+        failure_region = (
+            alt.Chart(
+                pd.DataFrame(
+                    {"start": [minimum_margin], "failure_boundary": [0.0]}
+                )
+            )
+            .mark_rect(color="#ffebee", opacity=0.7)
+            .encode(
+                x=alt.X("start:Q", title="Limit-state margin, g (psi)"),
+                x2="failure_boundary:Q",
+            )
+        )
+        density_area = (
+            alt.Chart(density_frame)
+            .mark_area(opacity=0.62, interpolate="monotone", line={"strokeWidth": 2})
+            .encode(
+                x=alt.X(
+                    "center_psi:Q",
+                    title="Limit-state margin, g (psi)",
+                    axis=alt.Axis(format=",.0f"),
+                ),
+                y=alt.Y("density:Q", title="Estimated probability density"),
+                color=alt.Color(
+                    "outcome:N",
+                    title="Monte Carlo outcome",
+                    scale=alt.Scale(
+                        domain=[failure_label, non_failure_label],
+                        range=["#c62828", "#2e7d32"],
+                    ),
+                ),
+                tooltip=[
+                    alt.Tooltip("outcome:N", title="Outcome"),
+                    alt.Tooltip("lower_psi:Q", title="Bin start (psi)", format=",.1f"),
+                    alt.Tooltip("upper_psi:Q", title="Bin end (psi)", format=",.1f"),
+                    alt.Tooltip("sample_count:Q", title="Samples", format=","),
+                ],
+            )
+        )
+        failure_boundary = (
+            alt.Chart(pd.DataFrame({"g": [0.0]}))
+            .mark_rule(color="#111827", strokeDash=[7, 5], strokeWidth=3)
+            .encode(
+                x=alt.X("g:Q"),
+                tooltip=[alt.Tooltip("g:Q", title="Failure boundary")],
+            )
+        )
+        failure_region_label = (
+            alt.Chart(
+                pd.DataFrame(
+                    {
+                        "g": [minimum_margin / 2.0],
+                        "density": [float(density_frame["density"].max()) * 0.9],
+                        "label": ["FAILED REGION\ng ≤ 0"],
+                    }
+                )
+            )
+            .mark_text(
+                color="#b91c1c",
+                fontSize=13,
+                fontWeight="bold",
+                lineBreak="\n",
+            )
+            .encode(x="g:Q", y="density:Q", text="label:N")
+        )
+        result_curve = (
+            (failure_region + density_area + failure_boundary + failure_region_label)
+            .properties(height=350)
+            .configure_view(strokeWidth=0)
+            .configure_legend(orient="bottom")
+        )
+        st.altair_chart(result_curve, width="stretch")
+        st.caption(
+            "Red area: failed Monte Carlo samples with g ≤ 0. Green area: non-failed "
+            "samples with g > 0. The dashed vertical line is the failure boundary g = 0."
+        )
         if result.get("samples", 0) < 1000:
             st.caption("Use more samples for a more stable classroom estimate.")
     else:
