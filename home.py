@@ -44,9 +44,9 @@ st.markdown(
       <article class="app-card">
         <a class="app-card-main" href="inspection" target="_self">
           <span class="app-number">I</span>
-          <h3>Fixed Inspection and Maintenance Planning</h3>
-          <p>Compare candidate inspection intervals for multiple pipe joints using
-          Monte Carlo deterioration, reliability criteria, repair actions, and lifecycle costs.</p>
+          <h3>Fixed Inspection and Excavation Planning</h3>
+          <p>Compare prior excavation schedules without ILI against ILI-informed
+          schedules, then calculate lifecycle-cost value of information.</p>
         </a>
         <span class="app-link app-status">Publication (in press)</span>
       </article>

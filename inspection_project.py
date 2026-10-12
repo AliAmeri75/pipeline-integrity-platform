@@ -12,8 +12,8 @@ from platform_ui import (
 
 render_project_hero(
     "Reliability-based pipeline integrity planning",
-    "Fixed Inspection Scheduling",
-    "Interactive decision support for comparing fixed inspection intervals across multiple pipe joints under deterioration, inspection uncertainty, repair actions, failure risk, and life-cycle cost.",
+    "Fixed Inspection and Excavation Scheduling",
+    "Compare prior excavation intervals without ILI against fixed ILI-informed schedules, optimize lifecycle cost under reliability criteria, and quantify the value of information.",
 )
 render_team()
 render_inspection_cta(

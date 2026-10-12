@@ -324,7 +324,7 @@ def render_inspection_cta(url: str) -> None:
         f"""
         <a class="inspection-cta" href="{safe_url}" target="_blank"
            rel="noopener noreferrer"
-           aria-label="Open the inspection scheduling simulation in a new tab">
+           aria-label="Open the inspection, excavation, and VoI simulation in a new tab">
           <span class="calendar-icon" aria-hidden="true">
             <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
               <rect x="7" y="10" width="34" height="31" rx="5" fill="white"
@@ -337,10 +337,10 @@ def render_inspection_cta(url: str) -> None:
           </span>
           <span>
             <span class="cta-kicker">Start your analysis</span>
-            <strong class="cta-title">Open the Inspection Scheduling Simulation<span
+            <strong class="cta-title">Open the Scheduling and VoI Simulation<span
               class="cta-arrow">↗</span></strong>
-            <span class="cta-detail">Define the pipe joints, compare inspection intervals,
-              and review the results.</span>
+            <span class="cta-detail">Compare prior excavation and ILI-informed schedules,
+              then review their lifecycle costs and VoI.</span>
           </span>
           <img class="ili-picture" src="{ili_illustration}"
                alt="Illustration of an inline inspection tool inside a pipeline">

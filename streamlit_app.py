@@ -28,7 +28,7 @@ education = st.Page(
 )
 inspection = st.Page(
     "inspection_project.py",
-    title="Fixed inspection scheduling using Bayesian",
+    title="Fixed inspection, excavation and VoI",
     icon=":material/calendar_month:",
     url_path="inspection",
 )
