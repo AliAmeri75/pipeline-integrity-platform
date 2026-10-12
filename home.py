@@ -53,7 +53,7 @@ st.markdown(
       <article class="app-card">
         <a class="app-card-main" href="rl-planning" target="_self">
           <span class="app-number">II</span>
-          <h3>Dynamic Inspection and Maintenance Scheduling using RL</h3>
+          <h3>Dynamic Inspection and Maintenance Scheduling</h3>
           <p>Train optimal maintenance-only or joint inspection-and-maintenance policies
           for a cracked pipe joint using reinforcement learning.</p>
         </a>

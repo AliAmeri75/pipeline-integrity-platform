@@ -3,7 +3,7 @@
 | Research component | Application |
 |---|---|
 | Multiple Inspection and Excavation | [Open application](https://pipeline-inspection-appgit-qjifsvi4zeuyuchaueiuwm.streamlit.app/inspection_planner) |
-| Dynamic RL planning | [Open application](https://pipeline-rl-planning.streamlit.app/) |
+| Dynamic Inspection and Maintenance Scheduling | [Open application](https://pipeline-rl-planning.streamlit.app/) |
 | Single Delayed Inspection | [Open application](https://pipeline-reliability-voi.streamlit.app/simulation) |
 
 The ALIRIM platform provides a common introduction to each research component and

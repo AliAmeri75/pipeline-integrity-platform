@@ -34,7 +34,7 @@ inspection = st.Page(
 )
 rl_planning = st.Page(
     "rl_project.py",
-    title="Dynamic inspection scheduling using RL",
+    title="Dynamic Inspection and Maintenance Scheduling",
     icon=":material/model_training:",
     url_path="rl-planning",
 )

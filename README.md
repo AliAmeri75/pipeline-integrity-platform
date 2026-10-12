@@ -18,7 +18,7 @@ ALIRIM — Asset Lifecycle Intelligence for Risk & Integrity Management
 ├── Multiple Inspection and Excavation
 │   ├── Integrated introduction
 │   └── Open standalone simulation directly
-├── Dynamic RL Planning
+├── Dynamic Inspection and Maintenance Scheduling
 │   ├── Introduction
 │   └── Open independent application
 ├── Single Delayed Inspection — Journal 2
