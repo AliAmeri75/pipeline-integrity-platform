@@ -18,6 +18,7 @@ from education.pof_model import (
     corlas_failure_pressure,
     deterministic_fpr_boundary,
     deterministic_pressure_sweep,
+    evaluate_deterministic_cracks,
     failure_pressure_ratio,
     limit_state_density_curve,
     recommended_distribution_specs,
@@ -57,6 +58,18 @@ def _distribution_detail(spec: DistributionSpec, unit: str) -> str:
         f"{spec.minimum:,.3g} / {spec.mode:,.3g} / "
         f"{spec.maximum:,.3g}{unit_suffix}"
     )
+
+
+def _suggest_column_index(
+    columns: list[object], keywords: tuple[str, ...], fallback: int
+) -> int:
+    """Choose a likely crack-data column while keeping manual selection available."""
+
+    for index, column in enumerate(columns):
+        normalized = str(column).strip().lower().replace("_", " ")
+        if any(keyword in normalized for keyword in keywords):
+            return index
+    return min(fallback, max(len(columns) - 1, 0))
 
 
 @st.cache_data(show_spinner=False)
@@ -383,10 +396,187 @@ if learning_module == DETERMINISTIC_MODULE:
             inputs, maximum_length_mm
         )
 
+    uploaded_crack_frame = pd.DataFrame()
+    st.markdown("#### Compare a crack list")
+    with st.expander("Upload CSV or Excel crack data", expanded=False):
+        st.markdown(
+            "Upload one row per crack and choose the columns containing **crack length "
+            "in mm** and **crack depth in mm**. All uploaded cracks use the pipe, material, "
+            "and operating-pressure inputs currently shown in the sidebar."
+        )
+        example_cracks = pd.DataFrame(
+            {
+                "Crack ID": [f"C-{index:02d}" for index in range(1, 11)],
+                "Crack Length (mm)": [20, 35, 50, 65, 80, 100, 125, 150, 180, 220],
+                "Crack Depth (mm)": [1.2, 1.5, 1.8, 2.1, 2.4, 2.8, 3.2, 3.6, 4.0, 4.4],
+            }
+        )
+        st.download_button(
+            "Download 10-crack CSV template",
+            example_cracks.to_csv(index=False),
+            file_name="alirim_crack_list_template.csv",
+            mime="text/csv",
+        )
+        uploaded_crack_file = st.file_uploader(
+            "Crack data file",
+            type=["csv", "xlsx"],
+            help="Accepted formats: CSV and Excel .xlsx files.",
+            key="deterministic_crack_inventory",
+        )
+        if uploaded_crack_file is not None:
+            try:
+                if uploaded_crack_file.name.lower().endswith(".csv"):
+                    uploaded_table = pd.read_csv(uploaded_crack_file)
+                else:
+                    uploaded_table = pd.read_excel(uploaded_crack_file)
+
+                if len(uploaded_table.columns) < 2:
+                    st.error("The file needs at least two columns: crack length and crack depth.")
+                elif uploaded_table.empty:
+                    st.error("The uploaded file does not contain any crack rows.")
+                else:
+                    uploaded_columns = list(uploaded_table.columns)
+                    length_column = st.selectbox(
+                        "Crack length column (mm)",
+                        uploaded_columns,
+                        index=_suggest_column_index(uploaded_columns, ("length",), 0),
+                        format_func=str,
+                    )
+                    depth_column = st.selectbox(
+                        "Crack depth column (mm)",
+                        uploaded_columns,
+                        index=_suggest_column_index(uploaded_columns, ("depth",), 1),
+                        format_func=str,
+                    )
+                    if length_column == depth_column:
+                        st.error("Choose different columns for crack length and crack depth.")
+                    else:
+                        crack_lengths = pd.to_numeric(
+                            uploaded_table[length_column], errors="coerce"
+                        )
+                        crack_depths = pd.to_numeric(
+                            uploaded_table[depth_column], errors="coerce"
+                        )
+                        valid_mask = (
+                            crack_lengths.notna()
+                            & crack_depths.notna()
+                            & (crack_lengths > 0.0)
+                            & (crack_depths > 0.0)
+                            & (crack_depths < wall)
+                        )
+                        invalid_count = int((~valid_mask).sum())
+                        if invalid_count:
+                            st.warning(
+                                f"Skipped {invalid_count} row(s) with missing/non-positive values "
+                                "or crack depth greater than or equal to wall thickness."
+                            )
+
+                        valid_lengths = crack_lengths[valid_mask].to_numpy(dtype=float)
+                        valid_depths = crack_depths[valid_mask].to_numpy(dtype=float)
+                        if valid_lengths.size == 0:
+                            st.error("No valid crack rows remain after checking the selected columns.")
+                        else:
+                            uploaded_crack_frame = pd.DataFrame(
+                                evaluate_deterministic_cracks(
+                                    inputs, valid_lengths, valid_depths
+                                )
+                            )
+                            uploaded_crack_frame["Source row"] = (
+                                np.flatnonzero(valid_mask.to_numpy()) + 2
+                            )
+                            uploaded_crack_frame["Crack"] = [
+                                f"Crack {number}"
+                                for number in uploaded_crack_frame["crack_number"]
+                            ]
+                            uploaded_crack_frame["FPR band"] = np.select(
+                                [
+                                    uploaded_crack_frame["fpr"] < 1.0,
+                                    uploaded_crack_frame["fpr"] < 1.25,
+                                ],
+                                ["FPR < 1.00", "1.00 ≤ FPR < 1.25"],
+                                default="FPR ≥ 1.25",
+                            )
+
+                            list_1, list_2, list_3, list_4 = st.columns(4)
+                            list_1.metric("Valid cracks", f"{len(uploaded_crack_frame):,}")
+                            list_2.metric(
+                                "FPR < 1",
+                                int((uploaded_crack_frame["fpr"] < 1.0).sum()),
+                            )
+                            list_3.metric(
+                                "FPR 1–1.25",
+                                int(
+                                    (
+                                        (uploaded_crack_frame["fpr"] >= 1.0)
+                                        & (uploaded_crack_frame["fpr"] < 1.25)
+                                    ).sum()
+                                ),
+                            )
+                            list_4.metric(
+                                "FPR ≥ 1.25",
+                                int((uploaded_crack_frame["fpr"] >= 1.25).sum()),
+                            )
+
+                            uploaded_results = uploaded_crack_frame[
+                                [
+                                    "Source row",
+                                    "Crack",
+                                    "crack_length_mm",
+                                    "crack_depth_mm",
+                                    "depth_percent_wall",
+                                    "failure_pressure_psi",
+                                    "fpr",
+                                    "FPR band",
+                                ]
+                            ].rename(
+                                columns={
+                                    "crack_length_mm": "Crack length (mm)",
+                                    "crack_depth_mm": "Crack depth (mm)",
+                                    "depth_percent_wall": "Depth (%WT)",
+                                    "failure_pressure_psi": "Failure pressure (psi)",
+                                    "fpr": "FPR",
+                                }
+                            )
+                            st.dataframe(
+                                uploaded_results.round(
+                                    {
+                                        "Crack length (mm)": 2,
+                                        "Crack depth (mm)": 3,
+                                        "Depth (%WT)": 1,
+                                        "Failure pressure (psi)": 1,
+                                        "FPR": 3,
+                                    }
+                                ),
+                                hide_index=True,
+                                width="stretch",
+                            )
+                            st.download_button(
+                                "Download evaluated crack results",
+                                uploaded_results.to_csv(index=False),
+                                file_name="alirim_deterministic_crack_results.csv",
+                                mime="text/csv",
+                            )
+            except (ImportError, OSError, TypeError, ValueError) as error:
+                st.error(f"The crack file could not be read: {error}")
+
+    if not uploaded_crack_frame.empty:
+        uploaded_maximum_length = float(
+            uploaded_crack_frame["crack_length_mm"].max()
+        )
+        required_maximum_length = max(
+            maximum_length_mm, 1.05 * uploaded_maximum_length
+        )
+        if required_maximum_length > maximum_length_mm:
+            maximum_length_mm = required_maximum_length
+            with st.spinner("Extending the curves to include every uploaded crack..."):
+                boundary_frame, depth_sweep, length_sweep = _deterministic_chart_data(
+                    inputs, maximum_length_mm
+                )
+
     st.markdown("#### Crack depth–length interaction")
     st.caption(
         "Each curve connects crack sizes with the same FPR. The blue diamond is the "
-        "crack depth and length selected in the sidebar."
+        "sidebar crack; uploaded cracks appear as color-coded circles."
     )
     selected_point_frame = pd.DataFrame(
         {
@@ -396,6 +586,7 @@ if learning_module == DETERMINISTIC_MODULE:
             "Failure pressure (psi)": [deterministic["failure_pressure_psi"]],
         }
     )
+    chart_layers: list[alt.Chart] = []
     if boundary_frame.empty:
         st.warning(
             "No FPR boundary falls inside the displayed crack-depth range for these inputs. "
@@ -435,38 +626,105 @@ if learning_module == DETERMINISTIC_MODULE:
                 ],
             )
         )
-        selected_point = (
-            alt.Chart(selected_point_frame)
+        chart_layers.append(boundary_lines)
+
+    if not uploaded_crack_frame.empty:
+        uploaded_points = (
+            alt.Chart(uploaded_crack_frame)
             .mark_point(
-                shape="diamond",
-                color="#0f426d",
+                shape="circle",
                 filled=True,
-                size=190,
+                size=115,
+                opacity=0.9,
                 stroke="white",
-                strokeWidth=2,
+                strokeWidth=1.5,
             )
             .encode(
-                x="crack_length_mm:Q",
-                y="crack_depth_mm:Q",
+                x=alt.X(
+                    "crack_length_mm:Q",
+                    title="Crack length (mm)",
+                    scale=alt.Scale(domain=[0.0, maximum_length_mm]),
+                ),
+                y=alt.Y(
+                    "crack_depth_mm:Q",
+                    title="Crack depth (mm)",
+                    scale=alt.Scale(domain=[0.0, wall]),
+                ),
+                color=alt.Color(
+                    "FPR band:N",
+                    title="Uploaded crack result",
+                    scale=alt.Scale(
+                        domain=[
+                            "FPR < 1.00",
+                            "1.00 ≤ FPR < 1.25",
+                            "FPR ≥ 1.25",
+                        ],
+                        range=["#c62828", "#ed8936", "#2e7d32"],
+                    ),
+                    legend=alt.Legend(orient="bottom"),
+                ),
                 tooltip=[
+                    alt.Tooltip("Crack:N"),
+                    alt.Tooltip("Source row:Q", format=".0f"),
                     alt.Tooltip("crack_length_mm:Q", title="Length (mm)", format=".1f"),
-                    alt.Tooltip("crack_depth_mm:Q", title="Depth (mm)", format=".2f"),
-                    alt.Tooltip("Failure pressure (psi):Q", format=",.1f"),
-                    alt.Tooltip("FPR:Q", format=".3f"),
+                    alt.Tooltip("crack_depth_mm:Q", title="Depth (mm)", format=".3f"),
+                    alt.Tooltip(
+                        "depth_percent_wall:Q", title="Depth (%WT)", format=".1f"
+                    ),
+                    alt.Tooltip(
+                        "failure_pressure_psi:Q",
+                        title="Failure pressure (psi)",
+                        format=",.1f",
+                    ),
+                    alt.Tooltip("fpr:Q", title="FPR", format=".3f"),
+                    alt.Tooltip("FPR band:N"),
                 ],
             )
         )
-        interaction_chart = (
-            (boundary_lines + selected_point)
-            .properties(height=430)
-            .configure_view(strokeWidth=0)
+        chart_layers.append(uploaded_points)
+
+    selected_point = (
+        alt.Chart(selected_point_frame)
+        .mark_point(
+            shape="diamond",
+            color="#0f426d",
+            filled=True,
+            size=190,
+            stroke="white",
+            strokeWidth=2,
         )
-        st.altair_chart(interaction_chart, width="stretch")
-        st.caption(
-            "Red: FPR = 1, where predicted failure pressure equals operating pressure. "
-            "Orange: an illustrative FPR = 1.25 comparison. These are learning lines, "
-            "not operator acceptance criteria."
+        .encode(
+            x=alt.X(
+                "crack_length_mm:Q",
+                title="Crack length (mm)",
+                scale=alt.Scale(domain=[0.0, maximum_length_mm]),
+            ),
+            y=alt.Y(
+                "crack_depth_mm:Q",
+                title="Crack depth (mm)",
+                scale=alt.Scale(domain=[0.0, wall]),
+            ),
+            tooltip=[
+                alt.Tooltip("crack_length_mm:Q", title="Length (mm)", format=".1f"),
+                alt.Tooltip("crack_depth_mm:Q", title="Depth (mm)", format=".2f"),
+                alt.Tooltip("Failure pressure (psi):Q", format=",.1f"),
+                alt.Tooltip("FPR:Q", format=".3f"),
+            ],
         )
+    )
+    chart_layers.append(selected_point)
+    interaction_chart = (
+        alt.layer(*chart_layers)
+        .resolve_scale(color="independent")
+        .properties(height=430)
+        .configure_view(strokeWidth=0)
+    )
+    st.altair_chart(interaction_chart, width="stretch")
+    st.caption(
+        "Boundary lines — red: FPR = 1; orange: illustrative FPR = 1.25. "
+        "Uploaded points — red: FPR < 1; orange: FPR from 1 to 1.25; green: FPR ≥ 1.25. "
+        "These are learning comparisons, not operator acceptance criteria."
+    )
 
     st.markdown("#### How each crack dimension changes failure pressure")
     depth_column, length_column = st.columns(2)

@@ -343,6 +343,52 @@ def deterministic_pressure_sweep(
     return records
 
 
+def evaluate_deterministic_cracks(
+    inputs: POFInputs,
+    crack_lengths_mm: Iterable[float],
+    crack_depths_mm: Iterable[float],
+) -> list[dict[str, float | int]]:
+    """Evaluate failure pressure and FPR for an uploaded list of cracks."""
+
+    lengths = np.asarray(list(crack_lengths_mm), dtype=float)
+    depths = np.asarray(list(crack_depths_mm), dtype=float)
+    if lengths.ndim != 1 or depths.ndim != 1 or lengths.size != depths.size:
+        raise ValueError("Crack length and depth must be one-dimensional, equal-size lists.")
+    if lengths.size == 0:
+        raise ValueError("At least one crack is required.")
+    if lengths.size > 1000:
+        raise ValueError("Upload no more than 1,000 cracks at a time.")
+    if not np.all(np.isfinite(lengths)) or np.any(lengths <= 0.0):
+        raise ValueError("Every crack length must be positive and finite.")
+    if not np.all(np.isfinite(depths)) or np.any(depths <= 0.0):
+        raise ValueError("Every crack depth must be positive and finite.")
+    if np.any(depths >= inputs.wall_thickness_mm):
+        raise ValueError("Every crack depth must be smaller than wall thickness.")
+
+    records: list[dict[str, float | int]] = []
+    for index, (length_mm, depth_mm) in enumerate(zip(lengths, depths), start=1):
+        trial = replace(
+            inputs,
+            flaw_length_mm=float(length_mm),
+            flaw_depth_mm=float(depth_mm),
+        )
+        result = corlas_failure_pressure(trial)
+        records.append(
+            {
+                "crack_number": index,
+                "crack_length_mm": float(length_mm),
+                "crack_depth_mm": float(depth_mm),
+                "depth_percent_wall": float(
+                    100.0 * depth_mm / inputs.wall_thickness_mm
+                ),
+                "failure_pressure_psi": result["failure_pressure_psi"],
+                "fpr": result["failure_pressure_psi"]
+                / inputs.operating_pressure_psi,
+            }
+        )
+    return records
+
+
 def deterministic_fpr_boundary(
     inputs: POFInputs,
     target_fpr: float,

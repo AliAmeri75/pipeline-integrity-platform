@@ -9,6 +9,7 @@ from education.pof_model import (
     corlas_failure_pressure,
     deterministic_fpr_boundary,
     deterministic_pressure_sweep,
+    evaluate_deterministic_cracks,
     failure_pressure_ratio,
     limit_state_density_curve,
     normal_pdf_curve,
@@ -66,6 +67,29 @@ class EducationalPOFTests(unittest.TestCase):
         )
         self.assertAlmostEqual(failure_pressure_ratio(boundary_inputs), 1.0, places=6)
         self.assertLess(middle["crack_depth_mm"], inputs.wall_thickness_mm)
+
+    def test_uploaded_crack_list_receives_pressure_and_fpr(self):
+        inputs = POFInputs()
+        results = evaluate_deterministic_cracks(
+            inputs,
+            crack_lengths_mm=[20.0, 40.0, 80.0],
+            crack_depths_mm=[2.0, 3.0, 4.0],
+        )
+        self.assertEqual(len(results), 3)
+        self.assertEqual(results[0]["crack_number"], 1)
+        self.assertGreater(results[0]["failure_pressure_psi"], 0.0)
+        self.assertAlmostEqual(
+            results[0]["fpr"],
+            results[0]["failure_pressure_psi"] / inputs.operating_pressure_psi,
+            places=12,
+        )
+        self.assertGreater(results[0]["fpr"], results[-1]["fpr"])
+
+    def test_uploaded_crack_depth_must_be_below_wall_thickness(self):
+        with self.assertRaisesRegex(ValueError, "smaller than wall thickness"):
+            evaluate_deterministic_cracks(
+                POFInputs(), crack_lengths_mm=[40.0], crack_depths_mm=[6.35]
+            )
 
     def test_simulation_is_reproducible_and_bounded(self):
         inputs = POFInputs(flaw_depth_mm=5.5)

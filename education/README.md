@@ -6,7 +6,8 @@ ALIRIM research applications. It includes two modules:
 1. **Deterministic FPR:** select crack depth and length, calculate Failure
    Pressure Ratio (predicted failure pressure / operating pressure), view the
    FPR = 1 and FPR = 1.25 depth-length curves, and explore separate depth and
-   length sensitivity plots.
+   length sensitivity plots. A CSV or Excel crack list can also be evaluated
+   and overlaid on the boundary chart.
 2. **Probabilistic POF:** represent input uncertainty with student-selected
    distributions, estimate probability of failure with Monte Carlo simulation,
    interpret the result, and complete a short knowledge check.
