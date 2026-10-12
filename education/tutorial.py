@@ -137,7 +137,11 @@ with st.sidebar:
                 ),
             )
             input_step = max(abs(float(getattr(inputs, parameter_name))) * 0.01, 0.001)
+            unit_suffix = "" if parameter_unit == "–" else f" {parameter_unit}"
             if parameter_distribution in {"Normal", "Lognormal"}:
+                st.caption(
+                    f"Mean: **{center:,.6g}{unit_suffix}** · classroom value above"
+                )
                 standard_deviation = st.number_input(
                     f"{parameter_label} standard deviation ({parameter_unit})",
                     min_value=0.000001,
@@ -184,8 +188,17 @@ with st.sidebar:
                     maximum=float(maximum),
                     mode=None if mode is None else float(mode),
                 )
+                distribution_mean = (
+                    (float(minimum) + float(maximum)) / 2.0
+                    if mode is None
+                    else (float(minimum) + float(mode) + float(maximum)) / 3.0
+                )
+                st.caption(
+                    f"Calculated mean: **{distribution_mean:,.6g}{unit_suffix}**"
+                )
             else:
                 variable_specs[parameter_name] = DistributionSpec()
+                st.caption(f"Fixed value: **{center:,.6g}{unit_suffix}**")
 
         configured_random_count = sum(
             spec.distribution != "Deterministic" for spec in variable_specs.values()
