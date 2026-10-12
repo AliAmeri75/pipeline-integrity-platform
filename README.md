@@ -12,7 +12,7 @@ University of Alberta.
 ALIRIM — Asset Lifecycle Intelligence for Risk & Integrity Management
 ├── Home and research overview
 ├── Data Integration
-│   ├── Upload TCAT/Psqr crack or corrosion profile workbooks
+│   ├── Try a fully synthetic sample or upload a TCAT/Psqr profile workbook
 │   ├── Inspect 2D depth maps and axial maximum-depth profiles
 │   └── Export feature size and location summaries to Excel or CSV
 ├── Educational Tutorial

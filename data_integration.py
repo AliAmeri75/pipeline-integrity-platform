@@ -13,6 +13,7 @@ from profile_data import (
     parse_profile_workbook,
     summary_csv,
     summary_xlsx,
+    synthetic_sample_workbook,
 )
 
 
@@ -36,16 +37,41 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-uploaded_file = st.file_uploader(
-    "Upload a profile workbook",
-    type=["xlsm", "xlsx"],
-    help=(
-        "Use a TCAT/Psqr-style workbook in which each feature sheet contains "
-        "longitudinal coordinates, circumferential coordinates, and a depth grid."
-    ),
+st.subheader("Choose a data source")
+data_source = st.radio(
+    "Data source",
+    ["Synthetic sample", "Upload your workbook"],
+    horizontal=True,
+    label_visibility="collapsed",
 )
 
-if uploaded_file is None:
+if data_source == "Synthetic sample":
+    source_content = synthetic_sample_workbook()
+    source_name = "synthetic_profile_sample.xlsx"
+    st.info(
+        "This demonstration contains three generated profiles. All identifiers, "
+        "locations, pipe dimensions, and depth values are synthetic and are not "
+        "copied from an operational workbook."
+    )
+    st.download_button(
+        "Download the synthetic sample workbook",
+        data=source_content,
+        file_name=source_name,
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
+else:
+    uploaded_file = st.file_uploader(
+        "Upload a profile workbook",
+        type=["xlsm", "xlsx"],
+        help=(
+            "Use a TCAT/Psqr-style workbook in which each feature sheet contains "
+            "longitudinal coordinates, circumferential coordinates, and a depth grid."
+        ),
+    )
+    source_content = uploaded_file.getvalue() if uploaded_file is not None else None
+    source_name = uploaded_file.name if uploaded_file is not None else ""
+
+if source_content is None:
     st.subheader("Simple workflow")
     st.markdown(
         """
@@ -61,12 +87,15 @@ if uploaded_file is None:
 
 try:
     with st.spinner("Reading profile grids…"):
-        summary, profiles = _read_profiles(uploaded_file.getvalue())
+        summary, profiles = _read_profiles(source_content)
 except ProfileFormatError as error:
     st.error(str(error))
     st.stop()
 
-st.success(f"Detected {len(summary):,} feature profiles in {uploaded_file.name}.")
+if data_source == "Synthetic sample":
+    st.success(f"Loaded {len(summary):,} fully synthetic feature profiles.")
+else:
+    st.success(f"Detected {len(summary):,} feature profiles in {source_name}.")
 defect_type = st.selectbox(
     "Profile type",
     ["Corrosion / metal loss", "Crack"],

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import io
 import math
+import random
 import warnings
 from datetime import time
 from statistics import median
@@ -36,6 +37,194 @@ SUMMARY_COLUMNS = [
 
 class ProfileFormatError(ValueError):
     """Raised when a workbook does not contain recognizable grid profiles."""
+
+
+def synthetic_sample_workbook(seed: int = 7314) -> bytes:
+    """Create a reproducible demonstration workbook containing no operational data."""
+
+    random_generator = random.Random(seed)
+    workbook = Workbook()
+    summary = workbook.active
+    summary.title = "Summary"
+    summary["A1"] = (
+        "SYNTHETIC DEMONSTRATION DATA — generated values only; "
+        "not copied from an inspection workbook."
+    )
+    summary["A1"].font = Font(bold=True, color="9C0006")
+    summary["A1"].fill = PatternFill("solid", fgColor="FFC7CE")
+    summary.merge_cells("A1:J1")
+    summary.append([])
+    summary_headers = [
+        "File Name",
+        "GW ID",
+        "CLS ID",
+        "TCPL\nChainage\n(m)",
+        "Clock\nPosition\n(hh:mm)",
+        "Outside Diameter (mm)",
+        "Wall Thickness (mm)",
+        "Peak Depth (%wt)",
+        "Length (mm)",
+        "Width (mm)",
+    ]
+    summary.append(summary_headers)
+    summary.freeze_panes = "A4"
+    summary.sheet_view.showGridLines = False
+
+    specifications = [
+        {
+            "profile_id": "SYN-001",
+            "gw_id": "DEMO-GW-01",
+            "feature_id": "DEMO-F-101",
+            "chainage_m": 12.500,
+            "clock": "02:15",
+            "diameter_mm": 609.6,
+            "wall_mm": 9.5,
+            "x_count": 36,
+            "y_count": 17,
+            "x_step": 2.0,
+            "y_step": 4.0,
+            "peak_target": 32.0,
+        },
+        {
+            "profile_id": "SYN-002",
+            "gw_id": "DEMO-GW-02",
+            "feature_id": "DEMO-F-202",
+            "chainage_m": 48.250,
+            "clock": "06:40",
+            "diameter_mm": 762.0,
+            "wall_mm": 10.3,
+            "x_count": 48,
+            "y_count": 21,
+            "x_step": 2.0,
+            "y_step": 4.0,
+            "peak_target": 44.0,
+        },
+        {
+            "profile_id": "SYN-003",
+            "gw_id": "DEMO-GW-03",
+            "feature_id": "DEMO-F-303",
+            "chainage_m": 91.800,
+            "clock": "10:05",
+            "diameter_mm": 914.4,
+            "wall_mm": 11.8,
+            "x_count": 60,
+            "y_count": 19,
+            "x_step": 2.0,
+            "y_step": 4.0,
+            "peak_target": 53.0,
+        },
+    ]
+
+    for index, specification in enumerate(specifications):
+        profile_id = str(specification["profile_id"])
+        feature_id = str(specification["feature_id"])
+        chainage_m = float(specification["chainage_m"])
+        x_count = int(specification["x_count"])
+        y_count = int(specification["y_count"])
+        x_step = float(specification["x_step"])
+        y_step = float(specification["y_step"])
+        peak_target = float(specification["peak_target"])
+        profile_length = x_count * x_step
+        profile_width = y_count * y_step
+        start_mm = chainage_m * 1000.0
+        circumferential_start = 200.0 + 140.0 * index
+
+        worksheet = workbook.create_sheet(profile_id)
+        worksheet.sheet_view.showGridLines = False
+        worksheet["A1"] = "SYNTHETIC PROFILE — generated for software demonstration"
+        worksheet["A1"].font = Font(bold=True, color="9C0006")
+        worksheet["E1"] = (
+            "Longitudinal Coordinate (mm) -> / "
+            "Circumferential Coordinate (mm) / Depth (%WT)"
+        )
+        worksheet["E1"].font = Font(bold=True, color="FFFFFF")
+        worksheet["E1"].fill = PatternFill("solid", fgColor="275D38")
+
+        axial_coordinates = [start_mm + x_step * offset for offset in range(x_count)]
+        circumferential_coordinates = [
+            circumferential_start + y_step * offset for offset in range(y_count)
+        ]
+        for column_number, coordinate in enumerate(axial_coordinates, start=6):
+            worksheet.cell(1, column_number, coordinate)
+        for row_number, coordinate in enumerate(circumferential_coordinates, start=2):
+            worksheet.cell(row_number, 5, coordinate)
+
+        centers = [
+            (
+                random_generator.uniform(0.30, 0.48) * (x_count - 1),
+                random_generator.uniform(0.35, 0.60) * (y_count - 1),
+                peak_target,
+                random_generator.uniform(5.0, 8.0),
+                random_generator.uniform(2.5, 4.5),
+            ),
+            (
+                random_generator.uniform(0.58, 0.78) * (x_count - 1),
+                random_generator.uniform(0.28, 0.72) * (y_count - 1),
+                peak_target * random_generator.uniform(0.48, 0.70),
+                random_generator.uniform(4.0, 7.0),
+                random_generator.uniform(2.0, 4.0),
+            ),
+        ]
+        maximum_depth = 0.0
+        for y_index, _ in enumerate(circumferential_coordinates):
+            for x_index, _ in enumerate(axial_coordinates):
+                depth = 0.0
+                for center_x, center_y, amplitude, spread_x, spread_y in centers:
+                    exponent = -0.5 * (
+                        ((x_index - center_x) / spread_x) ** 2
+                        + ((y_index - center_y) / spread_y) ** 2
+                    )
+                    depth += amplitude * math.exp(exponent)
+                depth += random_generator.uniform(-1.25, 1.25)
+                depth = 0.0 if depth < 4.0 else round(min(depth, 65.0), 1)
+                maximum_depth = max(maximum_depth, depth)
+                worksheet.cell(y_index + 2, x_index + 6, depth)
+
+        worksheet["B4"] = "Feature ID"
+        worksheet["C4"] = feature_id
+        worksheet["B5"] = "Outside Diameter (mm)"
+        worksheet["C5"] = float(specification["diameter_mm"])
+        worksheet["B6"] = "Wall Thickness (mm)"
+        worksheet["C6"] = float(specification["wall_mm"])
+        worksheet["B18"] = "Peak Depth (%wt)"
+        worksheet["C18"] = maximum_depth
+        worksheet["B19"] = "Total Length (mm)"
+        worksheet["C19"] = profile_length
+        worksheet["B20"] = "Total Width (mm)"
+        worksheet["C20"] = profile_width
+        worksheet["A24"] = "All values on this sheet are synthetic."
+        worksheet["A24"].font = Font(italic=True, color="9C0006")
+        worksheet.column_dimensions["A"].width = 34
+        worksheet.column_dimensions["B"].width = 25
+        worksheet.column_dimensions["C"].width = 18
+        worksheet.column_dimensions["E"].width = 18
+
+        summary.append(
+            [
+                profile_id,
+                specification["gw_id"],
+                feature_id,
+                chainage_m,
+                specification["clock"],
+                specification["diameter_mm"],
+                specification["wall_mm"],
+                maximum_depth,
+                profile_length,
+                profile_width,
+            ]
+        )
+
+    for column_number, header in enumerate(summary_headers, start=1):
+        cell = summary.cell(3, column_number, header)
+        cell.font = Font(bold=True, color="FFFFFF")
+        cell.fill = PatternFill("solid", fgColor="275D38")
+        cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+        summary.column_dimensions[cell.column_letter].width = 20
+    summary.auto_filter.ref = f"A3:J{3 + len(specifications)}"
+
+    output = io.BytesIO()
+    workbook.save(output)
+    return output.getvalue()
 
 
 def _clean_text(value: Any) -> str:
