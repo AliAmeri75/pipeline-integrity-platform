@@ -59,7 +59,7 @@ class ProfileDataTests(unittest.TestCase):
     def test_built_in_sample_is_synthetic_and_parseable(self):
         sample = synthetic_sample_workbook()
         workbook = load_workbook(io.BytesIO(sample), data_only=True)
-        self.assertIn("SYNTHETIC", workbook["Summary"]["A1"].value)
+        self.assertEqual(workbook["Summary"]["A1"].value, "SAMPLE DATA FOR CRACK PROFILE")
         self.assertTrue(all("SYN" in name for name in workbook.sheetnames if name != "Summary"))
         workbook.close()
 

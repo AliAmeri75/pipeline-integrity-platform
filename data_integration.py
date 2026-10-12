@@ -40,21 +40,17 @@ st.markdown(
 st.subheader("Choose a data source")
 data_source = st.radio(
     "Data source",
-    ["Synthetic sample", "Upload your workbook"],
+    ["Sample crack profiles", "Upload your workbook"],
     horizontal=True,
     label_visibility="collapsed",
 )
 
-if data_source == "Synthetic sample":
+if data_source == "Sample crack profiles":
     source_content = synthetic_sample_workbook()
-    source_name = "synthetic_profile_sample.xlsx"
-    st.info(
-        "This demonstration contains three generated profiles. All identifiers, "
-        "locations, pipe dimensions, and depth values are synthetic and are not "
-        "copied from an operational workbook."
-    )
+    source_name = "sample_crack_profiles.xlsx"
+    st.info("Sample data for crack profiles.")
     st.download_button(
-        "Download the synthetic sample workbook",
+        "Download the sample crack profiles",
         data=source_content,
         file_name=source_name,
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -92,13 +88,14 @@ except ProfileFormatError as error:
     st.error(str(error))
     st.stop()
 
-if data_source == "Synthetic sample":
-    st.success(f"Loaded {len(summary):,} fully synthetic feature profiles.")
+if data_source == "Sample crack profiles":
+    st.success(f"Loaded {len(summary):,} sample crack profiles.")
 else:
     st.success(f"Detected {len(summary):,} feature profiles in {source_name}.")
 defect_type = st.selectbox(
     "Profile type",
     ["Corrosion / metal loss", "Crack"],
+    index=1 if data_source == "Sample crack profiles" else 0,
     help="This label is included in the downloaded size-and-location table.",
 )
 summary = summary.copy()
@@ -128,6 +125,11 @@ metric_columns[2].metric(
     "Unavailable" if pd.isna(maximum_depth_mm) else f"{maximum_depth_mm:,.3f} mm",
 )
 metric_columns[3].metric("Profile length", f"{selected_row['Profile length (mm)']:,.1f} mm")
+
+st.caption(
+    "Profile axes show position in millimetres. The coloured grid values show crack depth "
+    "as a percentage of wall thickness (%WT), not as millimetres."
+)
 
 depth_domain = [0.0, max(float(selected_row["Maximum depth (%WT)"]), 1.0)]
 heatmap = (

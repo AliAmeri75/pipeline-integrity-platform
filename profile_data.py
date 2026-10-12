@@ -40,16 +40,13 @@ class ProfileFormatError(ValueError):
 
 
 def synthetic_sample_workbook(seed: int = 7314) -> bytes:
-    """Create a reproducible demonstration workbook containing no operational data."""
+    """Create a reproducible workbook containing sample crack profiles."""
 
     random_generator = random.Random(seed)
     workbook = Workbook()
     summary = workbook.active
     summary.title = "Summary"
-    summary["A1"] = (
-        "SYNTHETIC DEMONSTRATION DATA — generated values only; "
-        "not copied from an inspection workbook."
-    )
+    summary["A1"] = "SAMPLE DATA FOR CRACK PROFILE"
     summary["A1"].font = Font(bold=True, color="9C0006")
     summary["A1"].fill = PatternFill("solid", fgColor="FFC7CE")
     summary.merge_cells("A1:J1")
@@ -131,11 +128,11 @@ def synthetic_sample_workbook(seed: int = 7314) -> bytes:
 
         worksheet = workbook.create_sheet(profile_id)
         worksheet.sheet_view.showGridLines = False
-        worksheet["A1"] = "SYNTHETIC PROFILE — generated for software demonstration"
+        worksheet["A1"] = "SAMPLE DATA FOR CRACK PROFILE"
         worksheet["A1"].font = Font(bold=True, color="9C0006")
         worksheet["E1"] = (
-            "Longitudinal Coordinate (mm) -> / "
-            "Circumferential Coordinate (mm) / Depth (%WT)"
+            "Columns: Longitudinal Coordinate (mm) / "
+            "Rows: Circumferential Coordinate (mm) / Cells: Crack Depth (%WT)"
         )
         worksheet["E1"].font = Font(bold=True, color="FFFFFF")
         worksheet["E1"].fill = PatternFill("solid", fgColor="275D38")
@@ -192,7 +189,7 @@ def synthetic_sample_workbook(seed: int = 7314) -> bytes:
         worksheet["C19"] = profile_length
         worksheet["B20"] = "Total Width (mm)"
         worksheet["C20"] = profile_width
-        worksheet["A24"] = "All values on this sheet are synthetic."
+        worksheet["A24"] = "Sample data for crack profile."
         worksheet["A24"].font = Font(italic=True, color="9C0006")
         worksheet.column_dimensions["A"].width = 34
         worksheet.column_dimensions["B"].width = 25
