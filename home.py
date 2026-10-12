@@ -6,7 +6,9 @@ from platform_ui import editable_markdown, render_platform_hero, render_team
 
 
 render_platform_hero()
-render_team()
+
+st.markdown("## Team")
+render_team(show_contacts=True)
 
 st.markdown('<div class="section-label">Research overview</div>', unsafe_allow_html=True)
 st.markdown(
