@@ -3,11 +3,13 @@ import unittest
 import numpy as np
 
 from education.pof_model import (
+    DistributionSpec,
     POFInputs,
     UncertaintyInputs,
     corlas_failure_pressure,
     limit_state_density_curve,
     normal_pdf_curve,
+    recommended_distribution_specs,
     simulate_probability_of_failure,
 )
 
@@ -46,6 +48,50 @@ class EducationalPOFTests(unittest.TestCase):
         )
         self.assertEqual(failed_count, 3)
         self.assertAlmostEqual(float(area), 1.0, places=12)
+
+    def test_every_pipeline_parameter_has_a_recommended_distribution(self):
+        inputs = POFInputs()
+        specs = recommended_distribution_specs(inputs)
+        self.assertEqual(set(specs), set(inputs.__dict__))
+
+    def test_all_parameters_can_be_deterministic(self):
+        inputs = POFInputs()
+        specs = {name: DistributionSpec() for name in inputs.__dict__}
+        result = simulate_probability_of_failure(
+            inputs, variable_specs=specs, samples=100, seed=11
+        )
+        for name, values in result["sampled_inputs"].items():
+            self.assertTrue(np.allclose(values, getattr(inputs, name)), name)
+
+    def test_student_selected_distributions_respect_their_definitions(self):
+        inputs = POFInputs()
+        result = simulate_probability_of_failure(
+            inputs,
+            variable_specs={
+                "diameter_in": DistributionSpec(
+                    "Uniform", minimum=18.0, maximum=22.0
+                ),
+                "wall_thickness_mm": DistributionSpec(
+                    "Normal", standard_deviation=0.2
+                ),
+                "flaw_length_mm": DistributionSpec(
+                    "Lognormal", standard_deviation=8.0
+                ),
+                "flaw_depth_mm": DistributionSpec(
+                    "Triangular", minimum=2.5, mode=4.0, maximum=5.5
+                ),
+            },
+            samples=100,
+            seed=13,
+        )
+        diameters = result["sampled_inputs"]["diameter_in"]
+        self.assertGreaterEqual(float(diameters.min()), 18.0)
+        self.assertLessEqual(float(diameters.max()), 22.0)
+        self.assertGreater(float(np.std(diameters)), 0.0)
+        self.assertTrue(np.all(result["sampled_inputs"]["flaw_length_mm"] > 0.0))
+        depths = result["sampled_inputs"]["flaw_depth_mm"]
+        self.assertGreaterEqual(float(depths.min()), 2.5)
+        self.assertLessEqual(float(depths.max()), 5.5)
 
 
 if __name__ == "__main__":

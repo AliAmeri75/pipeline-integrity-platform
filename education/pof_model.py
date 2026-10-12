@@ -9,6 +9,7 @@ for an operator's verified engineering model or applicable codes.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Mapping
 
 import numpy as np
 
@@ -43,6 +44,129 @@ class UncertaintyInputs:
     wall_thickness_mm: float = 0.60
     operating_pressure_psi: float = 20.0
     model_factor: float = 0.21
+
+
+@dataclass(frozen=True)
+class DistributionSpec:
+    """Student-selected probability model for one pipeline parameter."""
+
+    distribution: str = "Deterministic"
+    standard_deviation: float = 0.0
+    minimum: float | None = None
+    maximum: float | None = None
+    mode: float | None = None
+
+
+SUPPORTED_DISTRIBUTIONS = (
+    "Deterministic",
+    "Normal",
+    "Lognormal",
+    "Uniform",
+    "Triangular",
+)
+
+
+def recommended_distribution_specs(
+    inputs: POFInputs,
+    uncertainty: UncertaintyInputs | None = None,
+) -> dict[str, DistributionSpec]:
+    """Return the tutorial's recommended starting probability models.
+
+    These defaults reproduce the uncertainty assumptions used by the original
+    classroom exercise while making every ``POFInputs`` parameter configurable.
+    """
+
+    uncertainty = uncertainty or UncertaintyInputs()
+    return {
+        "diameter_in": DistributionSpec(),
+        "wall_thickness_mm": DistributionSpec(
+            "Normal", standard_deviation=uncertainty.wall_thickness_mm
+        ),
+        "flaw_length_mm": DistributionSpec(
+            "Normal", standard_deviation=uncertainty.flaw_length_mm
+        ),
+        "flaw_depth_mm": DistributionSpec(
+            "Normal", standard_deviation=uncertainty.flaw_depth_mm
+        ),
+        "yield_strength_psi": DistributionSpec(
+            "Normal", standard_deviation=0.035 * inputs.yield_strength_psi
+        ),
+        "ultimate_strength_psi": DistributionSpec(
+            "Normal", standard_deviation=0.035 * inputs.ultimate_strength_psi
+        ),
+        "elastic_modulus_gpa": DistributionSpec(
+            "Normal", standard_deviation=0.04 * inputs.elastic_modulus_gpa
+        ),
+        "charpy_energy": DistributionSpec(
+            "Normal", standard_deviation=0.0223 * inputs.charpy_energy**1.46
+        ),
+        "operating_pressure_psi": DistributionSpec(
+            "Normal", standard_deviation=uncertainty.operating_pressure_psi
+        ),
+        "model_factor": DistributionSpec(
+            "Normal", standard_deviation=uncertainty.model_factor
+        ),
+        "safety_factor": DistributionSpec(),
+    }
+
+
+def _sample_distribution(
+    rng: np.random.Generator,
+    center: float,
+    spec: DistributionSpec,
+    samples: int,
+    *,
+    name: str,
+) -> np.ndarray:
+    """Sample one supported distribution and enforce a positive physical value."""
+
+    distribution = spec.distribution
+    if distribution not in SUPPORTED_DISTRIBUTIONS:
+        raise ValueError(f"Unsupported distribution for {name}: {distribution}.")
+    _positive(name, center)
+
+    if distribution == "Deterministic":
+        values = np.full(samples, center, dtype=float)
+    elif distribution in {"Normal", "Lognormal"}:
+        standard_deviation = float(spec.standard_deviation)
+        _positive(f"{name} standard deviation", standard_deviation)
+        if distribution == "Normal":
+            values = rng.normal(center, standard_deviation, samples)
+        else:
+            variance_ratio = (standard_deviation / center) ** 2
+            sigma = np.sqrt(np.log1p(variance_ratio))
+            mu = np.log(center) - 0.5 * sigma**2
+            values = rng.lognormal(mu, sigma, samples)
+    elif distribution == "Uniform":
+        if spec.minimum is None or spec.maximum is None:
+            raise ValueError(f"{name} uniform distribution needs minimum and maximum values.")
+        minimum = float(spec.minimum)
+        maximum = float(spec.maximum)
+        if not np.isfinite(minimum) or not np.isfinite(maximum) or minimum >= maximum:
+            raise ValueError(f"{name} minimum must be smaller than its maximum.")
+        values = rng.uniform(minimum, maximum, samples)
+    else:
+        if spec.minimum is None or spec.maximum is None or spec.mode is None:
+            raise ValueError(
+                f"{name} triangular distribution needs minimum, most likely, and maximum values."
+            )
+        minimum = float(spec.minimum)
+        maximum = float(spec.maximum)
+        mode = float(spec.mode)
+        if (
+            not np.isfinite(minimum)
+            or not np.isfinite(maximum)
+            or not np.isfinite(mode)
+            or minimum >= maximum
+            or mode < minimum
+            or mode > maximum
+        ):
+            raise ValueError(
+                f"{name} must satisfy minimum ≤ most likely ≤ maximum."
+            )
+        values = rng.triangular(minimum, mode, maximum, samples)
+
+    return np.maximum(values, 1e-9)
 
 
 def _positive(name: str, value: float) -> None:
@@ -179,67 +303,82 @@ def corlas_failure_pressure(inputs: POFInputs) -> dict[str, float]:
 
 def simulate_probability_of_failure(
     inputs: POFInputs,
-    uncertainty: UncertaintyInputs,
+    uncertainty: UncertaintyInputs | None = None,
     *,
+    variable_specs: Mapping[str, DistributionSpec] | None = None,
     samples: int = 1000,
     seed: int = 7,
 ) -> dict[str, object]:
-    """Estimate POF with a reproducible introductory Monte Carlo simulation."""
+    """Estimate POF with user-selected distributions for every model input."""
 
     if samples < 100 or samples > 10000:
         raise ValueError("Samples must be between 100 and 10,000.")
-    for name, value in uncertainty.__dict__.items():
-        if value < 0 or not np.isfinite(value):
-            raise ValueError(f"{name} uncertainty cannot be negative.")
+    if uncertainty is not None and variable_specs is not None:
+        raise ValueError("Use either uncertainty or variable_specs, not both.")
+    if uncertainty is not None:
+        for name, value in uncertainty.__dict__.items():
+            if value < 0 or not np.isfinite(value):
+                raise ValueError(f"{name} uncertainty cannot be negative.")
 
     rng = np.random.default_rng(seed)
-    lengths = np.maximum(
-        rng.normal(inputs.flaw_length_mm, uncertainty.flaw_length_mm, samples), 0.1
+    if variable_specs is None:
+        specs = recommended_distribution_specs(inputs, uncertainty)
+    else:
+        unknown_names = set(variable_specs) - set(inputs.__dict__)
+        if unknown_names:
+            raise ValueError(f"Unknown pipeline parameter: {sorted(unknown_names)[0]}.")
+        specs = {
+            name: variable_specs.get(name, DistributionSpec())
+            for name in inputs.__dict__
+        }
+
+    sampled_inputs = {
+        name: _sample_distribution(
+            rng,
+            float(value),
+            specs[name],
+            samples,
+            name=name.replace("_", " "),
+        )
+        for name, value in inputs.__dict__.items()
+    }
+
+    # Keep sampled cases inside simple physical bounds used by the teaching model.
+    sampled_inputs["diameter_in"] = np.maximum(sampled_inputs["diameter_in"], 0.1)
+    sampled_inputs["wall_thickness_mm"] = np.maximum(
+        sampled_inputs["wall_thickness_mm"], 0.5
     )
-    walls = np.maximum(
-        rng.normal(inputs.wall_thickness_mm, uncertainty.wall_thickness_mm, samples), 0.5
+    sampled_inputs["flaw_length_mm"] = np.maximum(sampled_inputs["flaw_length_mm"], 0.1)
+    sampled_inputs["flaw_depth_mm"] = np.clip(
+        sampled_inputs["flaw_depth_mm"],
+        0.02,
+        0.95 * sampled_inputs["wall_thickness_mm"],
     )
-    depths = rng.normal(inputs.flaw_depth_mm, uncertainty.flaw_depth_mm, samples)
-    depths = np.clip(depths, 0.02, 0.95 * walls)
-    pressures = np.maximum(
-        rng.normal(inputs.operating_pressure_psi, uncertainty.operating_pressure_psi, samples),
-        1.0,
+    sampled_inputs["yield_strength_psi"] = np.maximum(
+        sampled_inputs["yield_strength_psi"], 1000.0
     )
-    model_factors = np.maximum(
-        rng.normal(inputs.model_factor, uncertainty.model_factor, samples), 0.05
+    sampled_inputs["ultimate_strength_psi"] = np.maximum(
+        sampled_inputs["ultimate_strength_psi"],
+        sampled_inputs["yield_strength_psi"] * 1.01,
     )
-    yields = np.maximum(
-        rng.normal(inputs.yield_strength_psi, 0.035 * inputs.yield_strength_psi, samples),
-        1000.0,
+    sampled_inputs["elastic_modulus_gpa"] = np.maximum(
+        sampled_inputs["elastic_modulus_gpa"], 1.0
     )
-    ultimates = np.maximum(
-        rng.normal(inputs.ultimate_strength_psi, 0.035 * inputs.ultimate_strength_psi, samples),
-        yields * 1.01,
+    sampled_inputs["charpy_energy"] = np.maximum(sampled_inputs["charpy_energy"], 1.0)
+    sampled_inputs["operating_pressure_psi"] = np.maximum(
+        sampled_inputs["operating_pressure_psi"], 1.0
     )
-    charpy = np.maximum(
-        rng.normal(inputs.charpy_energy, 0.0223 * inputs.charpy_energy**1.46, samples),
-        1.0,
-    )
-    elastic = np.maximum(
-        rng.normal(inputs.elastic_modulus_gpa, 0.04 * inputs.elastic_modulus_gpa, samples),
-        1.0,
-    )
+    sampled_inputs["model_factor"] = np.maximum(sampled_inputs["model_factor"], 0.05)
+    sampled_inputs["safety_factor"] = np.maximum(sampled_inputs["safety_factor"], 0.1)
 
     failure_pressures = np.empty(samples, dtype=float)
     margins = np.empty(samples, dtype=float)
     for index in range(samples):
         sampled = POFInputs(
-            diameter_in=inputs.diameter_in,
-            wall_thickness_mm=float(walls[index]),
-            flaw_length_mm=float(lengths[index]),
-            flaw_depth_mm=float(depths[index]),
-            yield_strength_psi=float(yields[index]),
-            ultimate_strength_psi=float(ultimates[index]),
-            elastic_modulus_gpa=float(elastic[index]),
-            charpy_energy=float(charpy[index]),
-            operating_pressure_psi=float(pressures[index]),
-            model_factor=float(model_factors[index]),
-            safety_factor=inputs.safety_factor,
+            **{
+                name: float(values[index])
+                for name, values in sampled_inputs.items()
+            }
         )
         result = corlas_failure_pressure(sampled)
         failure_pressures[index] = result["failure_pressure_psi"]
@@ -252,6 +391,8 @@ def simulate_probability_of_failure(
         "samples": samples,
         "failure_pressures_psi": failure_pressures,
         "margins_psi": margins,
+        "sampled_inputs": sampled_inputs,
+        "variable_specs": specs,
     }
 
 

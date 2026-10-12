@@ -6,19 +6,52 @@ import csv
 import io
 
 import altair as alt
+import numpy as np
 import pandas as pd
 import streamlit as st
 
 from education.pof_model import (
+    DistributionSpec,
     POFInputs,
-    UncertaintyInputs,
+    SUPPORTED_DISTRIBUTIONS,
     classroom_interpretation,
     corlas_failure_pressure,
     limit_state_density_curve,
-    normal_pdf_curve,
+    recommended_distribution_specs,
     simulate_probability_of_failure,
 )
 from platform_ui import render_project_hero
+
+
+PARAMETER_UI = (
+    ("diameter_in", "Pipe diameter", "in"),
+    ("wall_thickness_mm", "Wall thickness", "mm"),
+    ("flaw_length_mm", "Crack length", "mm"),
+    ("flaw_depth_mm", "Crack depth", "mm"),
+    ("yield_strength_psi", "Yield strength", "psi"),
+    ("ultimate_strength_psi", "Ultimate strength", "psi"),
+    ("elastic_modulus_gpa", "Elastic modulus", "GPa"),
+    ("charpy_energy", "Charpy energy", "energy unit"),
+    ("operating_pressure_psi", "Operating pressure", "psi"),
+    ("model_factor", "Model factor, θ", "–"),
+    ("safety_factor", "Safety factor", "–"),
+)
+PARAMETER_LABELS = {name: label for name, label, _ in PARAMETER_UI}
+PARAMETER_UNITS = {name: unit for name, _, unit in PARAMETER_UI}
+
+
+def _distribution_detail(spec: DistributionSpec, unit: str) -> str:
+    unit_suffix = "" if unit == "–" else f" {unit}"
+    if spec.distribution == "Deterministic":
+        return "Fixed value"
+    if spec.distribution in {"Normal", "Lognormal"}:
+        return f"SD {spec.standard_deviation:,.3g}{unit_suffix}"
+    if spec.distribution == "Uniform":
+        return f"{spec.minimum:,.3g} to {spec.maximum:,.3g}{unit_suffix}"
+    return (
+        f"{spec.minimum:,.3g} / {spec.mode:,.3g} / "
+        f"{spec.maximum:,.3g}{unit_suffix}"
+    )
 
 
 render_project_hero(
@@ -62,19 +95,110 @@ with st.sidebar:
         elastic_modulus = st.number_input("Elastic modulus (GPa)", 50.0, 300.0, 210.0, 1.0)
         charpy = st.number_input("Charpy energy", 1.0, 300.0, 85.0, 1.0)
         model_factor = st.number_input("Model factor, θ", 0.1, 3.0, 1.27, 0.01)
+        safety_factor = st.number_input("Safety factor", 1.0, 5.0, 2.0, 0.05)
 
-inputs = POFInputs(
-    diameter_in=diameter,
-    wall_thickness_mm=wall,
-    flaw_length_mm=length,
-    flaw_depth_mm=depth,
-    yield_strength_psi=yield_strength,
-    ultimate_strength_psi=ultimate_strength,
-    elastic_modulus_gpa=elastic_modulus,
-    charpy_energy=charpy,
-    operating_pressure_psi=pressure,
-    model_factor=model_factor,
-)
+    inputs = POFInputs(
+        diameter_in=diameter,
+        wall_thickness_mm=wall,
+        flaw_length_mm=length,
+        flaw_depth_mm=depth,
+        yield_strength_psi=yield_strength,
+        ultimate_strength_psi=ultimate_strength,
+        elastic_modulus_gpa=elastic_modulus,
+        charpy_energy=charpy,
+        operating_pressure_psi=pressure,
+        model_factor=model_factor,
+        safety_factor=safety_factor,
+    )
+
+    with st.expander("Random-variable setup", expanded=True):
+        st.caption(
+            "Choose whether each input is fixed or random. The classroom value above "
+            "is used as the mean for Normal and Lognormal distributions."
+        )
+        recommended_specs = recommended_distribution_specs(inputs)
+        variable_specs: dict[str, DistributionSpec] = {}
+        for parameter_name, parameter_label, parameter_unit in PARAMETER_UI:
+            parameter_prefix = f"education_rv_v2_{parameter_name}"
+            center = float(getattr(inputs, parameter_name))
+            default_spec = recommended_specs[parameter_name]
+            default_sd = default_spec.standard_deviation or max(center * 0.05, 0.01)
+            default_span = max(2.0 * default_sd, center * 0.10, 0.02)
+            st.markdown(f"**{parameter_label}**")
+            parameter_distribution = st.selectbox(
+                f"Treatment for {parameter_label}",
+                SUPPORTED_DISTRIBUTIONS,
+                index=SUPPORTED_DISTRIBUTIONS.index(default_spec.distribution),
+                key=f"{parameter_prefix}_distribution",
+                label_visibility="collapsed",
+                help=(
+                    "Deterministic uses one fixed value. The other choices sample "
+                    "a probability distribution."
+                ),
+            )
+            input_step = max(abs(float(getattr(inputs, parameter_name))) * 0.01, 0.001)
+            if parameter_distribution in {"Normal", "Lognormal"}:
+                standard_deviation = st.number_input(
+                    f"{parameter_label} standard deviation ({parameter_unit})",
+                    min_value=0.000001,
+                    value=float(default_sd),
+                    step=float(input_step),
+                    format="%.6g",
+                    key=f"{parameter_prefix}_sd",
+                )
+                variable_specs[parameter_name] = DistributionSpec(
+                    parameter_distribution,
+                    standard_deviation=float(standard_deviation),
+                )
+            elif parameter_distribution in {"Uniform", "Triangular"}:
+                minimum = st.number_input(
+                    f"{parameter_label} minimum ({parameter_unit})",
+                    min_value=0.000001,
+                    value=float(max(center - default_span, center * 0.05)),
+                    step=float(input_step),
+                    format="%.6g",
+                    key=f"{parameter_prefix}_minimum",
+                )
+                if parameter_distribution == "Triangular":
+                    mode = st.number_input(
+                        f"{parameter_label} most likely ({parameter_unit})",
+                        min_value=0.000001,
+                        value=float(center),
+                        step=float(input_step),
+                        format="%.6g",
+                        key=f"{parameter_prefix}_mode",
+                    )
+                else:
+                    mode = None
+                maximum = st.number_input(
+                    f"{parameter_label} maximum ({parameter_unit})",
+                    min_value=0.000001,
+                    value=float(center + default_span),
+                    step=float(input_step),
+                    format="%.6g",
+                    key=f"{parameter_prefix}_maximum",
+                )
+                variable_specs[parameter_name] = DistributionSpec(
+                    parameter_distribution,
+                    minimum=float(minimum),
+                    maximum=float(maximum),
+                    mode=None if mode is None else float(mode),
+                )
+            else:
+                variable_specs[parameter_name] = DistributionSpec()
+
+        configured_random_count = sum(
+            spec.distribution != "Deterministic" for spec in variable_specs.values()
+        )
+        st.success(
+            f"Current model: {configured_random_count} random and "
+            f"{len(variable_specs) - configured_random_count} deterministic parameters."
+        )
+        st.caption(
+            "Physical checks keep sampled values positive, crack depth below wall thickness, "
+            "and ultimate strength above yield strength. Safety factor affects allowable "
+            "pressure, but it is not part of the tutorial limit state g."
+        )
 
 try:
     deterministic = corlas_failure_pressure(inputs)
@@ -138,31 +262,56 @@ with calculate_tab:
 
 with visualize_tab:
     st.subheader("Represent uncertainty and estimate POF")
-    left, right = st.columns(2)
-    with left:
-        depth_sd = st.number_input("Crack-depth standard deviation (mm)", 0.01, 5.0, 0.74, 0.05)
-        length_sd = st.number_input("Crack-length standard deviation (mm)", 0.01, 100.0, 15.6, 0.5)
-        wall_sd = st.number_input("Wall-thickness standard deviation (mm)", 0.01, 5.0, 0.60, 0.05)
-    with right:
-        pressure_sd = st.number_input("Pressure standard deviation (psi)", 0.1, 500.0, 20.0, 1.0)
-        factor_sd = st.number_input("Model-factor standard deviation", 0.01, 1.0, 0.21, 0.01)
-        samples = st.select_slider("Monte Carlo samples", [250, 500, 1000, 2000], value=1000)
+    random_count = sum(
+        spec.distribution != "Deterministic" for spec in variable_specs.values()
+    )
+    setup_1, setup_2 = st.columns(2)
+    setup_1.metric("Random parameters", f"{random_count} of {len(variable_specs)}")
+    samples = setup_2.select_slider(
+        "Monte Carlo samples", [250, 500, 1000, 2000], value=1000
+    )
+    st.caption(
+        "Configure every parameter in the left sidebar. Deterministic inputs stay fixed; "
+        "random inputs are sampled independently for each Monte Carlo case."
+    )
+    distribution_summary = pd.DataFrame(
+        [
+            {
+                "Parameter": label,
+                "Base value": f"{getattr(inputs, name):,.4g} {unit if unit != '–' else ''}".strip(),
+                "Distribution": variable_specs[name].distribution,
+                "Definition": _distribution_detail(variable_specs[name], unit),
+            }
+            for name, label, unit in PARAMETER_UI
+        ]
+    )
+    with st.expander("Review the complete probability model"):
+        st.dataframe(distribution_summary, hide_index=True, width="stretch")
 
-    uncertainty = UncertaintyInputs(
-        flaw_length_mm=length_sd,
-        flaw_depth_mm=depth_sd,
-        wall_thickness_mm=wall_sd,
-        operating_pressure_psi=pressure_sd,
-        model_factor=factor_sd,
+    current_configuration = (
+        inputs,
+        tuple((name, variable_specs[name]) for name, _, _ in PARAMETER_UI),
+        samples,
     )
     if st.button("Run the POF simulation", type="primary", width="stretch"):
         with st.spinner("Sampling uncertain inputs and evaluating the limit state..."):
-            st.session_state["education_pof_result"] = simulate_probability_of_failure(
-                inputs, uncertainty, samples=samples, seed=7
-            )
-            st.session_state["education_pof_case"] = inputs
+            try:
+                st.session_state["education_pof_result"] = simulate_probability_of_failure(
+                    inputs,
+                    variable_specs=variable_specs,
+                    samples=samples,
+                    seed=7,
+                )
+                st.session_state["education_pof_configuration"] = current_configuration
+            except ValueError as error:
+                st.session_state.pop("education_pof_result", None)
+                st.session_state.pop("education_pof_configuration", None)
+                st.error(str(error))
 
     result = st.session_state.get("education_pof_result")
+    if result and st.session_state.get("education_pof_configuration") != current_configuration:
+        st.info("The inputs or distributions changed. Run the simulation again to update the result.")
+        result = None
     if result:
         pof = float(result["probability_of_failure"])
         pof_1, pof_2, pof_3 = st.columns(3)
@@ -261,29 +410,64 @@ with visualize_tab:
     else:
         st.info("Run the simulation to calculate the classroom POF estimate.")
 
-    st.markdown("#### Probability-density plot")
-    variable = st.selectbox(
-        "Choose an uncertain input",
-        ["Crack depth", "Crack length", "Wall thickness", "Operating pressure"],
+    st.markdown("#### Selected input distribution")
+    distribution_variable_label = st.selectbox(
+        "Choose a pipeline parameter",
+        [label for _, label, _ in PARAMETER_UI],
     )
-    pdf_options = {
-        "Crack depth": (depth, depth_sd, "mm"),
-        "Crack length": (length, length_sd, "mm"),
-        "Wall thickness": (wall, wall_sd, "mm"),
-        "Operating pressure": (pressure, pressure_sd, "psi"),
-    }
-    pdf_mean, pdf_sd, pdf_unit = pdf_options[variable]
-    x_values, density = normal_pdf_curve(pdf_mean, pdf_sd)
-    pdf_frame = pd.DataFrame({f"Value ({pdf_unit})": x_values, "Probability density": density})
-    st.line_chart(pdf_frame, x=f"Value ({pdf_unit})", y="Probability density")
-    st.caption(
-        "The curve shows which input values are more or less likely. Its total area equals 1; "
-        "the vertical value is density, not probability at a single point."
+    distribution_variable = next(
+        name
+        for name, label, _ in PARAMETER_UI
+        if label == distribution_variable_label
     )
+    selected_spec = variable_specs[distribution_variable]
+    selected_unit = PARAMETER_UNITS[distribution_variable]
+    if selected_spec.distribution == "Deterministic":
+        st.info(
+            f"{distribution_variable_label} is deterministic and remains fixed at "
+            f"{getattr(inputs, distribution_variable):,.4g} {selected_unit}."
+        )
+    elif result:
+        sampled_values = np.asarray(result["sampled_inputs"][distribution_variable])
+        bin_count = min(30, max(10, int(np.sqrt(sampled_values.size))))
+        density, edges = np.histogram(sampled_values, bins=bin_count, density=True)
+        distribution_frame = pd.DataFrame(
+            {
+                "Value": (edges[:-1] + edges[1:]) / 2.0,
+                "Density": density,
+            }
+        )
+        distribution_chart = (
+            alt.Chart(distribution_frame)
+            .mark_area(
+                color="#3b6f5a",
+                opacity=0.55,
+                interpolate="monotone",
+                line={"color": "#214c3b", "strokeWidth": 2},
+            )
+            .encode(
+                x=alt.X("Value:Q", title=f"{distribution_variable_label} ({selected_unit})"),
+                y=alt.Y("Density:Q", title="Estimated probability density"),
+                tooltip=[
+                    alt.Tooltip("Value:Q", format=",.3g"),
+                    alt.Tooltip("Density:Q", format=".3e"),
+                ],
+            )
+            .properties(height=260)
+        )
+        st.altair_chart(distribution_chart, width="stretch")
+        st.caption(
+            f"Empirical {selected_spec.distribution} distribution after applying the "
+            "tutorial's simple physical bounds."
+        )
+    else:
+        st.info("Run the POF simulation to view samples from this distribution.")
 
 with decision_tab:
     st.subheader("Interpret the result before choosing an action")
     result = st.session_state.get("education_pof_result")
+    if result and st.session_state.get("education_pof_configuration") != current_configuration:
+        result = None
     if result:
         pof = float(result["probability_of_failure"])
         label, prompt = classroom_interpretation(pof)
@@ -304,6 +488,10 @@ with decision_tab:
         writer.writerow(["Failure pressure (psi)", deterministic["failure_pressure_psi"]])
         writer.writerow(["Estimated POF", pof])
         writer.writerow(["Classroom interpretation", label])
+        writer.writerow([])
+        writer.writerow(["Parameter", "Distribution"])
+        for name, parameter_label, _ in PARAMETER_UI:
+            writer.writerow([parameter_label, variable_specs[name].distribution])
         st.download_button(
             "Download this classroom result",
             report_buffer.getvalue(),
