@@ -7,6 +7,7 @@ from profile_data import (
     maximum_depth_envelope,
     parse_profile_workbook,
     summary_csv,
+    summary_for_defect_type,
     summary_xlsx,
     synthetic_sample_workbook,
 )
@@ -60,6 +61,8 @@ class ProfileDataTests(unittest.TestCase):
         sample = synthetic_sample_workbook()
         workbook = load_workbook(io.BytesIO(sample), data_only=True)
         self.assertEqual(workbook["Summary"]["A1"].value, "SAMPLE DATA FOR CRACK PROFILE")
+        self.assertNotIn("Width (mm)", [cell.value for cell in workbook["Summary"][3]])
+        self.assertIsNone(workbook["SYN-001"]["B20"].value)
         self.assertTrue(all("SYN" in name for name in workbook.sheetnames if name != "Summary"))
         workbook.close()
 
@@ -70,6 +73,16 @@ class ProfileDataTests(unittest.TestCase):
         self.assertTrue(summary["GW ID"].str.startswith("DEMO-GW-").all())
         self.assertTrue(summary["Maximum depth (%WT)"].between(20.0, 65.0).all())
         self.assertTrue((summary["Profile length (mm)"] > 0).all())
+
+    def test_crack_summary_omits_width_but_corrosion_keeps_it(self):
+        summary, _ = parse_profile_workbook(synthetic_sample_workbook())
+
+        crack_summary = summary_for_defect_type(summary, "Crack")
+        corrosion_summary = summary_for_defect_type(summary, "Corrosion / metal loss")
+
+        self.assertNotIn("Profile width (mm)", crack_summary.columns)
+        self.assertIn("Profile width (mm)", corrosion_summary.columns)
+        self.assertTrue((crack_summary["Defect type"] == "Crack").all())
 
     def test_psqr_grid_becomes_one_planning_row(self):
         summary, profiles = parse_profile_workbook(_sample_workbook())

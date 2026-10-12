@@ -49,7 +49,7 @@ def synthetic_sample_workbook(seed: int = 7314) -> bytes:
     summary["A1"] = "SAMPLE DATA FOR CRACK PROFILE"
     summary["A1"].font = Font(bold=True, color="9C0006")
     summary["A1"].fill = PatternFill("solid", fgColor="FFC7CE")
-    summary.merge_cells("A1:J1")
+    summary.merge_cells("A1:I1")
     summary.append([])
     summary_headers = [
         "File Name",
@@ -61,7 +61,6 @@ def synthetic_sample_workbook(seed: int = 7314) -> bytes:
         "Wall Thickness (mm)",
         "Peak Depth (%wt)",
         "Length (mm)",
-        "Width (mm)",
     ]
     summary.append(summary_headers)
     summary.freeze_panes = "A4"
@@ -122,7 +121,6 @@ def synthetic_sample_workbook(seed: int = 7314) -> bytes:
         y_step = float(specification["y_step"])
         peak_target = float(specification["peak_target"])
         profile_length = x_count * x_step
-        profile_width = y_count * y_step
         start_mm = chainage_m * 1000.0
         circumferential_start = 200.0 + 140.0 * index
 
@@ -187,8 +185,6 @@ def synthetic_sample_workbook(seed: int = 7314) -> bytes:
         worksheet["C18"] = maximum_depth
         worksheet["B19"] = "Total Length (mm)"
         worksheet["C19"] = profile_length
-        worksheet["B20"] = "Total Width (mm)"
-        worksheet["C20"] = profile_width
         worksheet["A24"] = "Sample data for crack profile."
         worksheet["A24"].font = Font(italic=True, color="9C0006")
         worksheet.column_dimensions["A"].width = 34
@@ -207,7 +203,6 @@ def synthetic_sample_workbook(seed: int = 7314) -> bytes:
                 specification["wall_mm"],
                 maximum_depth,
                 profile_length,
-                profile_width,
             ]
         )
 
@@ -217,7 +212,7 @@ def synthetic_sample_workbook(seed: int = 7314) -> bytes:
         cell.fill = PatternFill("solid", fgColor="275D38")
         cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
         summary.column_dimensions[cell.column_letter].width = 20
-    summary.auto_filter.ref = f"A3:J{3 + len(specifications)}"
+    summary.auto_filter.ref = f"A3:I{3 + len(specifications)}"
 
     output = io.BytesIO()
     workbook.save(output)
@@ -509,6 +504,16 @@ def maximum_depth_envelope(profile: pd.DataFrame) -> pd.DataFrame:
         .rename(columns={"Depth (%WT)": "Maximum depth (%WT)"})
         .sort_values("Axial offset (mm)")
     )
+
+
+def summary_for_defect_type(summary: pd.DataFrame, defect_type: str) -> pd.DataFrame:
+    """Return the planning fields appropriate for a crack or corrosion profile."""
+
+    output = summary.copy()
+    output["Defect type"] = defect_type
+    if defect_type == "Crack":
+        output = output.drop(columns=["Profile width (mm)"], errors="ignore")
+    return output
 
 
 def summary_csv(summary: pd.DataFrame) -> bytes:

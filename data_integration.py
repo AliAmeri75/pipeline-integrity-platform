@@ -12,6 +12,7 @@ from profile_data import (
     maximum_depth_envelope,
     parse_profile_workbook,
     summary_csv,
+    summary_for_defect_type,
     summary_xlsx,
     synthetic_sample_workbook,
 )
@@ -98,8 +99,7 @@ defect_type = st.selectbox(
     index=1 if data_source == "Sample crack profiles" else 0,
     help="This label is included in the downloaded size-and-location table.",
 )
-summary = summary.copy()
-summary["Defect type"] = defect_type
+summary = summary_for_defect_type(summary, defect_type)
 
 profile_ids = summary["Profile ID"].astype(str).tolist()
 selected_profile_id = st.selectbox(
@@ -185,24 +185,35 @@ profile_area = (
 st.altair_chart(profile_area, width="stretch")
 
 st.subheader("Size and location output")
-st.caption(
-    "Maximum depth is calculated from the profile grid. Depth in millimetres uses the "
-    "recorded wall thickness. Profile length and width follow the workbook values when available."
-)
+if defect_type == "Crack":
+    st.caption(
+        "Maximum crack depth is calculated from the profile grid. Depth in millimetres uses "
+        "the recorded wall thickness. Crack outputs report depth and length; width is not included."
+    )
+else:
+    st.caption(
+        "Maximum depth is calculated from the profile grid. Depth in millimetres uses the "
+        "recorded wall thickness. Profile length and width follow the workbook values when available."
+    )
 st.dataframe(summary, width="stretch", hide_index=True)
 
+output_stem = (
+    "crack_size_location_summary"
+    if defect_type == "Crack"
+    else "corrosion_size_location_summary"
+)
 download_columns = st.columns(2)
 download_columns[0].download_button(
     "Download Excel summary",
     data=summary_xlsx(summary),
-    file_name="crack_corrosion_size_location_summary.xlsx",
+    file_name=f"{output_stem}.xlsx",
     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     use_container_width=True,
 )
 download_columns[1].download_button(
     "Download CSV summary",
     data=summary_csv(summary),
-    file_name="crack_corrosion_size_location_summary.csv",
+    file_name=f"{output_stem}.csv",
     mime="text/csv",
     use_container_width=True,
 )
