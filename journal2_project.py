@@ -7,7 +7,7 @@ from platform_ui import render_external_cta, render_project_hero
 
 render_project_hero(
     "Publication in press",
-    "Reliability and Value-of-Information Planning",
+    "Single Delayed Inspection",
     "Prior and pre-posterior lifecycle decisions for a pipe joint containing a population of growing cracks.",
 )
 render_external_cta(

@@ -28,7 +28,7 @@ education = st.Page(
 )
 inspection = st.Page(
     "inspection_project.py",
-    title="Fixed inspection, excavation and VoI",
+    title="Multiple Inspection and Excavation",
     icon=":material/calendar_month:",
     url_path="inspection",
 )
@@ -40,7 +40,7 @@ rl_planning = st.Page(
 )
 journal_two = st.Page(
     "journal2_project.py",
-    title="Inspection Scheduling using VoI",
+    title="Single Delayed Inspection",
     icon=":material/monitoring:",
     url_path="reliability-voi",
 )

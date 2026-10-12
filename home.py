@@ -44,7 +44,7 @@ st.markdown(
       <article class="app-card">
         <a class="app-card-main" href="inspection" target="_self">
           <span class="app-number">I</span>
-          <h3>Fixed Inspection and Excavation Planning</h3>
+          <h3>Multiple Inspection and Excavation</h3>
           <p>Compare prior excavation schedules without ILI against ILI-informed
           schedules, then calculate lifecycle-cost value of information.</p>
         </a>
@@ -64,7 +64,7 @@ st.markdown(
       <article class="app-card">
         <a class="app-card-main" href="reliability-voi" target="_self">
           <span class="app-number">III</span>
-          <h3>Fixed Inspection Scheduling and Value of Information</h3>
+          <h3>Single Delayed Inspection</h3>
           <p>Evaluate prior and pre-posterior decisions for pipe joints with multiple
           cracks using uploaded or Google Drive-hosted POF datasets.</p>
         </a>
