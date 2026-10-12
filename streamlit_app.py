@@ -60,8 +60,8 @@ publications = st.Page(
 navigation = st.navigation(
     {
         "ALIRIM": [home],
-        "Data preparation": [data_integration],
         "Learning path": [education],
+        "Data preparation": [data_integration],
         "Research applications": [inspection, rl_planning, journal_two],
         "Research resources": [publications],
     }
