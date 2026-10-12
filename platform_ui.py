@@ -13,6 +13,8 @@ import streamlit as st
 APP_DIR = Path(__file__).resolve().parent
 ASSET_DIR = APP_DIR / "assets"
 CONTENT_DIR = APP_DIR / "content"
+MOHAMMADALI_PROFILE_URL = "https://www.linkedin.com/in/mohammad-ali-ameri"
+YONG_LI_PROFILE_URL = "https://apps.ualberta.ca/directory/person/yong9"
 
 
 def data_uri(path: Path) -> str:
@@ -79,6 +81,8 @@ def apply_global_style() -> None:
         .platform-hero p, .project-hero p { color: var(--muted); font-size: 1.02rem;
             max-width: 850px; margin: 0; }
         .credit-line { color: var(--ink); font-size: .92rem; font-weight: 800; margin-top: 1rem; }
+        .credit-line a { color: var(--ua-green); text-decoration: none; }
+        .credit-line a:hover { text-decoration: underline; }
         .people-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr));
             gap: 1rem; margin: 1.1rem 0 1.7rem; }
         .person-card { display: flex; align-items: center; gap: 1rem; padding: 1rem;
@@ -203,7 +207,11 @@ def render_platform_hero() -> None:
         'Integrity Management</div>'
         '<p>A unified gateway to reliability, inspection, maintenance, and '
         'value-of-information tools developed from doctoral research.</p>'
-        '<div class="credit-line">Developed by Mohammadali Ameri and Yong Li</div>'
+        '<div class="credit-line">Developed by '
+        f'<a href="{MOHAMMADALI_PROFILE_URL}" target="_blank" rel="noopener noreferrer">'
+        'Mohammadali Ameri</a> and '
+        f'<a href="{YONG_LI_PROFILE_URL}" target="_blank" rel="noopener noreferrer">'
+        'Dr. Yong Li</a></div>'
         '</section>'
     )
     st.markdown(hero, unsafe_allow_html=True)
@@ -214,14 +222,16 @@ def render_team(show_contacts: bool = False) -> None:
     yong = data_uri(ASSET_DIR / "yong_li.png")
     mohammadali_contact = (
         '<p class="person-contact"><a href="mailto:amerifar@ualberta.ca">'
-        'amerifar@ualberta.ca</a><br><a href="https://www.linkedin.com/in/'
-        'mohammad-ali-ameri" target="_blank" rel="noopener">LinkedIn profile</a></p>'
+        'amerifar@ualberta.ca</a><br>'
+        f'<a href="{MOHAMMADALI_PROFILE_URL}" target="_blank" '
+        'rel="noopener noreferrer">LinkedIn profile</a></p>'
         if show_contacts
         else ""
     )
     yong_contact = (
         '<p class="person-contact"><a href="mailto:yong9@ualberta.ca">'
-        'yong9@ualberta.ca</a><br><a href="https://apps.ualberta.ca/directory/person/yong9" '
+        'yong9@ualberta.ca</a><br>'
+        f'<a href="{YONG_LI_PROFILE_URL}" '
         'target="_blank" rel="noopener noreferrer">University profile</a></p>'
         if show_contacts
         else ""
@@ -231,11 +241,11 @@ def render_team(show_contacts: bool = False) -> None:
         <section class="people-grid" aria-label="Platform developers">
           <article class="person-card">
             <img src="{mohammadali}" alt="Mohammadali Ameri">
-            <div><h3>Mohammadali Ameri</h3><p>PhD researcher and developer<br>University of Alberta</p>{mohammadali_contact}</div>
+            <div><h3><a href="{MOHAMMADALI_PROFILE_URL}" target="_blank" rel="noopener noreferrer">Mohammadali Ameri</a></h3><p>PhD researcher and developer<br>University of Alberta</p>{mohammadali_contact}</div>
           </article>
           <article class="person-card">
             <img src="{yong}" alt="Yong Li">
-            <div><h3>Yong Li</h3><p>Associate Professor and co-developer<br>University of Alberta</p>{yong_contact}</div>
+            <div><h3><a href="{YONG_LI_PROFILE_URL}" target="_blank" rel="noopener noreferrer">Dr. Yong Li</a></h3><p>Associate Professor and co-developer<br>University of Alberta</p>{yong_contact}</div>
           </article>
         </section>
         """,
