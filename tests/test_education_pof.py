@@ -7,6 +7,9 @@ from education.pof_model import (
     POFInputs,
     UncertaintyInputs,
     corlas_failure_pressure,
+    deterministic_fpr_boundary,
+    deterministic_pressure_sweep,
+    failure_pressure_ratio,
     limit_state_density_curve,
     normal_pdf_curve,
     recommended_distribution_specs,
@@ -20,6 +23,49 @@ class EducationalPOFTests(unittest.TestCase):
         result = corlas_failure_pressure(inputs)
         self.assertGreater(result["failure_pressure_psi"], inputs.operating_pressure_psi)
         self.assertGreater(result["folias_factor"], 1.0)
+
+    def test_failure_pressure_ratio_uses_operating_pressure(self):
+        inputs = POFInputs(operating_pressure_psi=936.0)
+        result = corlas_failure_pressure(inputs)
+        self.assertAlmostEqual(
+            failure_pressure_ratio(inputs),
+            result["failure_pressure_psi"] / 936.0,
+            places=12,
+        )
+
+    def test_deterministic_pressure_decreases_with_crack_size(self):
+        inputs = POFInputs()
+        depth_sweep = deterministic_pressure_sweep(
+            inputs, "flaw_depth_mm", [1.0, 3.0, 5.0]
+        )
+        length_sweep = deterministic_pressure_sweep(
+            inputs, "flaw_length_mm", [10.0, 80.0, 200.0]
+        )
+        self.assertGreater(
+            depth_sweep[0]["failure_pressure_psi"],
+            depth_sweep[-1]["failure_pressure_psi"],
+        )
+        self.assertGreater(
+            length_sweep[0]["failure_pressure_psi"],
+            length_sweep[-1]["failure_pressure_psi"],
+        )
+
+    def test_deterministic_fpr_boundary_matches_requested_ratio(self):
+        inputs = POFInputs()
+        boundary = deterministic_fpr_boundary(
+            inputs, 1.0, maximum_length_mm=300.0, length_points=21
+        )
+        self.assertGreater(len(boundary), 5)
+        middle = boundary[len(boundary) // 2]
+        boundary_inputs = POFInputs(
+            **{
+                **inputs.__dict__,
+                "flaw_length_mm": middle["crack_length_mm"],
+                "flaw_depth_mm": middle["crack_depth_mm"],
+            }
+        )
+        self.assertAlmostEqual(failure_pressure_ratio(boundary_inputs), 1.0, places=6)
+        self.assertLess(middle["crack_depth_mm"], inputs.wall_thickness_mm)
 
     def test_simulation_is_reproducible_and_bounded(self):
         inputs = POFInputs(flaw_depth_mm=5.5)

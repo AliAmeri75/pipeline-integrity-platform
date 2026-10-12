@@ -8,8 +8,8 @@ for an operator's verified engineering model or applicable codes.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Mapping
+from dataclasses import dataclass, replace
+from typing import Iterable, Mapping
 
 import numpy as np
 
@@ -299,6 +299,126 @@ def corlas_failure_pressure(inputs: POFInputs) -> dict[str, float]:
         "q_factor": float(q_factor),
         "free_surface_factor": float(free_surface),
     }
+
+
+def failure_pressure_ratio(inputs: POFInputs) -> float:
+    """Return deterministic FPR = predicted failure pressure / operating pressure."""
+
+    result = corlas_failure_pressure(inputs)
+    return result["failure_pressure_psi"] / inputs.operating_pressure_psi
+
+
+def deterministic_pressure_sweep(
+    inputs: POFInputs,
+    parameter: str,
+    values: Iterable[float],
+) -> list[dict[str, float]]:
+    """Evaluate deterministic pressure and FPR while changing one crack dimension."""
+
+    if parameter not in {"flaw_depth_mm", "flaw_length_mm"}:
+        raise ValueError("The deterministic sweep supports crack depth or crack length.")
+
+    parameter_values = np.asarray(list(values), dtype=float)
+    if parameter_values.ndim != 1 or parameter_values.size < 2:
+        raise ValueError("A deterministic sweep needs at least two values.")
+    if not np.all(np.isfinite(parameter_values)) or np.any(parameter_values <= 0.0):
+        raise ValueError("Deterministic sweep values must be positive and finite.")
+    if parameter == "flaw_depth_mm" and np.any(
+        parameter_values >= inputs.wall_thickness_mm
+    ):
+        raise ValueError("Crack-depth sweep values must remain below wall thickness.")
+
+    records: list[dict[str, float]] = []
+    for value in parameter_values:
+        trial_inputs = replace(inputs, **{parameter: float(value)})
+        result = corlas_failure_pressure(trial_inputs)
+        records.append(
+            {
+                "parameter_value": float(value),
+                "failure_pressure_psi": result["failure_pressure_psi"],
+                "fpr": result["failure_pressure_psi"]
+                / trial_inputs.operating_pressure_psi,
+            }
+        )
+    return records
+
+
+def deterministic_fpr_boundary(
+    inputs: POFInputs,
+    target_fpr: float,
+    *,
+    minimum_length_mm: float = 1.0,
+    maximum_length_mm: float = 300.0,
+    length_points: int = 81,
+    minimum_depth_mm: float = 0.05,
+    maximum_depth_ratio: float = 0.95,
+) -> list[dict[str, float]]:
+    """Return the crack depth/length curve at a selected deterministic FPR.
+
+    For every crack length, bisection finds the crack depth where predicted
+    failure pressure divided by operating pressure equals ``target_fpr``.
+    Lengths without a boundary inside the plotted depth range are omitted.
+    """
+
+    _positive("target FPR", target_fpr)
+    _positive("minimum crack length", minimum_length_mm)
+    _positive("maximum crack length", maximum_length_mm)
+    _positive("minimum crack depth", minimum_depth_mm)
+    if maximum_length_mm <= minimum_length_mm:
+        raise ValueError("Maximum crack length must exceed minimum crack length.")
+    if length_points < 2 or length_points > 501:
+        raise ValueError("Boundary resolution must be between 2 and 501 points.")
+    if not 0.0 < maximum_depth_ratio < 1.0:
+        raise ValueError("Maximum depth ratio must be between zero and one.")
+
+    maximum_depth_mm = maximum_depth_ratio * inputs.wall_thickness_mm
+    if minimum_depth_mm >= maximum_depth_mm:
+        raise ValueError("Minimum crack depth must be below the plotted maximum depth.")
+
+    target_pressure = target_fpr * inputs.operating_pressure_psi
+    length_values = np.linspace(
+        minimum_length_mm, maximum_length_mm, length_points
+    )
+    records: list[dict[str, float]] = []
+
+    for length_mm in length_values:
+        def residual(depth_mm: float) -> float:
+            trial = replace(
+                inputs,
+                flaw_length_mm=float(length_mm),
+                flaw_depth_mm=float(depth_mm),
+            )
+            return corlas_failure_pressure(trial)["failure_pressure_psi"] - target_pressure
+
+        lower_depth = minimum_depth_mm
+        upper_depth = maximum_depth_mm
+        lower_residual = residual(lower_depth)
+        upper_residual = residual(upper_depth)
+        if lower_residual * upper_residual > 0.0:
+            continue
+
+        for _ in range(45):
+            middle_depth = (lower_depth + upper_depth) / 2.0
+            middle_residual = residual(middle_depth)
+            if middle_residual > 0.0:
+                lower_depth = middle_depth
+            else:
+                upper_depth = middle_depth
+
+        boundary_depth = (lower_depth + upper_depth) / 2.0
+        records.append(
+            {
+                "crack_length_mm": float(length_mm),
+                "crack_depth_mm": float(boundary_depth),
+                "depth_percent_wall": float(
+                    100.0 * boundary_depth / inputs.wall_thickness_mm
+                ),
+                "target_fpr": float(target_fpr),
+                "target_failure_pressure_psi": float(target_pressure),
+            }
+        )
+
+    return records
 
 
 def simulate_probability_of_failure(

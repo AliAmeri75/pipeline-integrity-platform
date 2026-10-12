@@ -16,6 +16,9 @@ from education.pof_model import (
     SUPPORTED_DISTRIBUTIONS,
     classroom_interpretation,
     corlas_failure_pressure,
+    deterministic_fpr_boundary,
+    deterministic_pressure_sweep,
+    failure_pressure_ratio,
     limit_state_density_curve,
     recommended_distribution_specs,
     simulate_probability_of_failure,
@@ -38,6 +41,8 @@ PARAMETER_UI = (
 )
 PARAMETER_LABELS = {name: label for name, label, _ in PARAMETER_UI}
 PARAMETER_UNITS = {name: unit for name, _, unit in PARAMETER_UI}
+DETERMINISTIC_MODULE = "1 · Deterministic FPR"
+PROBABILISTIC_MODULE = "2 · Probabilistic POF"
 
 
 def _distribution_detail(spec: DistributionSpec, unit: str) -> str:
@@ -54,10 +59,104 @@ def _distribution_detail(spec: DistributionSpec, unit: str) -> str:
     )
 
 
+@st.cache_data(show_spinner=False)
+def _deterministic_chart_data(
+    inputs: POFInputs, maximum_length_mm: float
+) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    """Calculate reusable deterministic boundary and sensitivity data."""
+
+    boundaries: list[dict[str, float | str]] = []
+    for target_fpr, label in (
+        (
+            1.0,
+            f"FPR = 1.00 · Pf = {inputs.operating_pressure_psi:,.0f} psi",
+        ),
+        (
+            1.25,
+            f"FPR = 1.25 · Pf = {1.25 * inputs.operating_pressure_psi:,.0f} psi",
+        ),
+    ):
+        for record in deterministic_fpr_boundary(
+            inputs,
+            target_fpr,
+            maximum_length_mm=maximum_length_mm,
+            length_points=81,
+        ):
+            boundaries.append({**record, "Boundary": label})
+
+    depth_values = np.linspace(0.05, 0.95 * inputs.wall_thickness_mm, 100)
+    length_values = np.linspace(1.0, maximum_length_mm, 100)
+    depth_sweep = pd.DataFrame(
+        deterministic_pressure_sweep(inputs, "flaw_depth_mm", depth_values)
+    ).rename(columns={"parameter_value": "Crack dimension (mm)"})
+    length_sweep = pd.DataFrame(
+        deterministic_pressure_sweep(inputs, "flaw_length_mm", length_values)
+    ).rename(columns={"parameter_value": "Crack dimension (mm)"})
+    return pd.DataFrame(boundaries), depth_sweep, length_sweep
+
+
+def _sensitivity_chart(
+    data: pd.DataFrame,
+    *,
+    dimension_title: str,
+    selected_dimension: float,
+    selected_pressure: float,
+    operating_pressure: float,
+) -> alt.LayerChart:
+    """Build one failure-pressure sensitivity curve with the selected case."""
+
+    response = (
+        alt.Chart(data)
+        .mark_line(color="#276749", strokeWidth=3)
+        .encode(
+            x=alt.X("Crack dimension (mm):Q", title=dimension_title),
+            y=alt.Y(
+                "failure_pressure_psi:Q",
+                title="Predicted failure pressure (psi)",
+                axis=alt.Axis(format=",.0f"),
+            ),
+            tooltip=[
+                alt.Tooltip("Crack dimension (mm):Q", format=".2f"),
+                alt.Tooltip(
+                    "failure_pressure_psi:Q",
+                    title="Failure pressure (psi)",
+                    format=",.1f",
+                ),
+                alt.Tooltip("fpr:Q", title="FPR", format=".3f"),
+            ],
+        )
+    )
+    operating_line = (
+        alt.Chart(pd.DataFrame({"Operating pressure": [operating_pressure]}))
+        .mark_rule(color="#c62828", strokeDash=[7, 5], strokeWidth=2)
+        .encode(y="Operating pressure:Q")
+    )
+    selected_point = (
+        alt.Chart(
+            pd.DataFrame(
+                {
+                    "Crack dimension (mm)": [selected_dimension],
+                    "failure_pressure_psi": [selected_pressure],
+                }
+            )
+        )
+        .mark_point(color="#0f426d", filled=True, size=130, stroke="white", strokeWidth=2)
+        .encode(
+            x="Crack dimension (mm):Q",
+            y="failure_pressure_psi:Q",
+            tooltip=[
+                alt.Tooltip("Crack dimension (mm):Q", format=".2f"),
+                alt.Tooltip("failure_pressure_psi:Q", format=",.1f"),
+            ],
+        )
+    )
+    return (response + operating_line + selected_point).properties(height=300)
+
+
 render_project_hero(
     "Educational tutorial",
     "From ILI Data to a Maintenance Decision",
-    "A guided classroom exercise for learning how crack measurements, uncertainty, failure pressure, and probability of failure support pipeline-integrity decisions.",
+    "Two guided classroom modules for exploring deterministic failure-pressure ratio and probabilistic failure analysis for pipeline cracks.",
 )
 
 st.markdown(
@@ -69,16 +168,37 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-st.subheader("Learning path")
-st.markdown("**Learn → Calculate → Visualize → Decide → Check your understanding**")
-st.caption(
-    "Learning objectives: explain a simple limit state, estimate POF from uncertain inputs, "
-    "interpret a probability-density plot, and connect the result to a maintenance discussion."
+st.subheader("Choose a learning module")
+learning_module = st.radio(
+    "Learning module",
+    [DETERMINISTIC_MODULE, PROBABILISTIC_MODULE],
+    horizontal=True,
+    label_visibility="collapsed",
+    help=(
+        "Begin with deterministic crack-size effects, then continue to the "
+        "probabilistic model when you are ready to represent uncertainty."
+    ),
 )
+
+st.subheader("Learning path")
+if learning_module == DETERMINISTIC_MODULE:
+    st.markdown("**Choose a crack → Calculate FPR → Read the boundary → Explore sensitivity**")
+    st.caption(
+        "Learning objectives: calculate deterministic FPR, identify the FPR = 1 boundary, "
+        "and observe how crack depth and length change predicted failure pressure."
+    )
+else:
+    st.markdown("**Learn → Calculate → Visualize → Decide → Check your understanding**")
+    st.caption(
+        "Learning objectives: explain a simple limit state, estimate POF from uncertain inputs, "
+        "interpret a probability-density plot, and connect the result to a maintenance discussion."
+    )
 
 with st.sidebar:
     st.header("Classroom case")
-    st.caption("Change one input at a time and observe how the result responds.")
+    st.caption(
+        "These deterministic pipe, material, crack, and pressure inputs are shared by both modules."
+    )
     diameter = st.number_input("Pipe diameter (in)", 4.0, 60.0, 20.0, 1.0)
     wall = st.number_input("Wall thickness (mm)", 2.0, 30.0, 6.35, 0.05)
     length = st.number_input("Crack length (mm)", 1.0, 500.0, 40.0, 1.0)
@@ -111,7 +231,8 @@ with st.sidebar:
         safety_factor=safety_factor,
     )
 
-    with st.expander("Random-variable setup", expanded=True):
+    if learning_module == PROBABILISTIC_MODULE:
+      with st.expander("Random-variable setup", expanded=True):
         st.caption(
             "Choose whether each input is fixed or random. The classroom value above "
             "is used as the mean for Normal and Lognormal distributions."
@@ -217,6 +338,189 @@ try:
     deterministic = corlas_failure_pressure(inputs)
 except ValueError as error:
     st.error(str(error))
+    st.stop()
+
+if learning_module == DETERMINISTIC_MODULE:
+    fpr = failure_pressure_ratio(inputs)
+    st.subheader("Deterministic crack-size and FPR module")
+    st.markdown(
+        "**Failure Pressure Ratio (FPR) = predicted failure pressure ÷ operating pressure.** "
+        "The FPR = 1 curve contains crack sizes whose predicted failure pressure equals "
+        f"the selected operating pressure of **{pressure:,.0f} psi**."
+    )
+
+    metric_1, metric_2, metric_3, metric_4 = st.columns(4)
+    metric_1.metric(
+        "Selected crack",
+        f"{length:,.1f} × {depth:,.2f} mm",
+        help="Crack length × crack depth",
+    )
+    metric_2.metric(
+        "Failure pressure", f"{deterministic['failure_pressure_psi']:,.0f} psi"
+    )
+    metric_3.metric("Operating pressure", f"{pressure:,.0f} psi")
+    metric_4.metric("FPR", f"{fpr:.3f}")
+
+    if fpr < 1.0:
+        st.error(
+            "For this classroom case, FPR < 1: predicted failure pressure is below "
+            "the selected operating pressure."
+        )
+    elif fpr < 1.25:
+        st.warning(
+            "For this classroom case, FPR is between 1.00 and the illustrative "
+            "1.25 comparison line."
+        )
+    else:
+        st.success(
+            "For this classroom case, FPR is at or above the illustrative "
+            "1.25 comparison line."
+        )
+
+    maximum_length_mm = max(300.0, float(length))
+    with st.spinner("Calculating deterministic crack-size boundaries..."):
+        boundary_frame, depth_sweep, length_sweep = _deterministic_chart_data(
+            inputs, maximum_length_mm
+        )
+
+    st.markdown("#### Crack depth–length interaction")
+    st.caption(
+        "Each curve connects crack sizes with the same FPR. The blue diamond is the "
+        "crack depth and length selected in the sidebar."
+    )
+    selected_point_frame = pd.DataFrame(
+        {
+            "crack_length_mm": [length],
+            "crack_depth_mm": [depth],
+            "FPR": [fpr],
+            "Failure pressure (psi)": [deterministic["failure_pressure_psi"]],
+        }
+    )
+    if boundary_frame.empty:
+        st.warning(
+            "No FPR boundary falls inside the displayed crack-depth range for these inputs. "
+            "Try a different operating pressure or material case."
+        )
+    else:
+        boundary_labels = list(boundary_frame["Boundary"].drop_duplicates())
+        boundary_lines = (
+            alt.Chart(boundary_frame)
+            .mark_line(strokeWidth=3)
+            .encode(
+                x=alt.X(
+                    "crack_length_mm:Q",
+                    title="Crack length (mm)",
+                    scale=alt.Scale(domain=[0.0, maximum_length_mm]),
+                ),
+                y=alt.Y(
+                    "crack_depth_mm:Q",
+                    title="Crack depth (mm)",
+                    scale=alt.Scale(domain=[0.0, wall]),
+                ),
+                color=alt.Color(
+                    "Boundary:N",
+                    scale=alt.Scale(
+                        domain=boundary_labels,
+                        range=["#c62828", "#ed8936"],
+                    ),
+                    legend=alt.Legend(orient="bottom", title=None),
+                ),
+                tooltip=[
+                    alt.Tooltip("Boundary:N"),
+                    alt.Tooltip("crack_length_mm:Q", title="Length (mm)", format=".1f"),
+                    alt.Tooltip("crack_depth_mm:Q", title="Depth (mm)", format=".3f"),
+                    alt.Tooltip(
+                        "depth_percent_wall:Q", title="Depth (%WT)", format=".1f"
+                    ),
+                ],
+            )
+        )
+        selected_point = (
+            alt.Chart(selected_point_frame)
+            .mark_point(
+                shape="diamond",
+                color="#0f426d",
+                filled=True,
+                size=190,
+                stroke="white",
+                strokeWidth=2,
+            )
+            .encode(
+                x="crack_length_mm:Q",
+                y="crack_depth_mm:Q",
+                tooltip=[
+                    alt.Tooltip("crack_length_mm:Q", title="Length (mm)", format=".1f"),
+                    alt.Tooltip("crack_depth_mm:Q", title="Depth (mm)", format=".2f"),
+                    alt.Tooltip("Failure pressure (psi):Q", format=",.1f"),
+                    alt.Tooltip("FPR:Q", format=".3f"),
+                ],
+            )
+        )
+        interaction_chart = (
+            (boundary_lines + selected_point)
+            .properties(height=430)
+            .configure_view(strokeWidth=0)
+        )
+        st.altair_chart(interaction_chart, width="stretch")
+        st.caption(
+            "Red: FPR = 1, where predicted failure pressure equals operating pressure. "
+            "Orange: an illustrative FPR = 1.25 comparison. These are learning lines, "
+            "not operator acceptance criteria."
+        )
+
+    st.markdown("#### How each crack dimension changes failure pressure")
+    depth_column, length_column = st.columns(2)
+    with depth_column:
+        st.markdown(f"**Vary depth at a fixed length of {length:,.1f} mm**")
+        depth_chart = _sensitivity_chart(
+            depth_sweep,
+            dimension_title="Crack depth (mm)",
+            selected_dimension=depth,
+            selected_pressure=deterministic["failure_pressure_psi"],
+            operating_pressure=pressure,
+        )
+        st.altair_chart(depth_chart, width="stretch")
+    with length_column:
+        st.markdown(f"**Vary length at a fixed depth of {depth:,.2f} mm**")
+        length_chart = _sensitivity_chart(
+            length_sweep,
+            dimension_title="Crack length (mm)",
+            selected_dimension=length,
+            selected_pressure=deterministic["failure_pressure_psi"],
+            operating_pressure=pressure,
+        )
+        st.altair_chart(length_chart, width="stretch")
+    st.caption(
+        f"The dashed red line is the selected operating pressure ({pressure:,.0f} psi); "
+        "the blue point is the current crack. Change depth or length in the sidebar and "
+        "observe how the point and FPR move."
+    )
+
+    with st.expander("View the selected deterministic calculation"):
+        st.dataframe(
+            pd.DataFrame(
+                {
+                    "Output": [
+                        "Flow-stress pressure",
+                        "Fracture-toughness pressure",
+                        "Controlling failure pressure",
+                        "Operating pressure",
+                        "Failure Pressure Ratio (FPR)",
+                        "Crack depth / wall thickness",
+                    ],
+                    "Value": [
+                        f"{deterministic['flow_pressure_psi']:,.1f} psi",
+                        f"{deterministic['toughness_pressure_psi']:,.1f} psi",
+                        f"{deterministic['failure_pressure_psi']:,.1f} psi",
+                        f"{pressure:,.1f} psi",
+                        f"{fpr:.4f}",
+                        f"{100.0 * depth / wall:.1f}%",
+                    ],
+                }
+            ),
+            hide_index=True,
+            width="stretch",
+        )
     st.stop()
 
 learn_tab, calculate_tab, visualize_tab, decision_tab = st.tabs(
