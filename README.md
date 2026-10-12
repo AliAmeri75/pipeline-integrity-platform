@@ -11,6 +11,10 @@ University of Alberta.
 ```text
 ALIRIM — Asset Lifecycle Intelligence for Risk & Integrity Management
 ├── Home and research overview
+├── Educational Tutorial
+│   ├── Guided failure-pressure calculation
+│   ├── Probability-density plots and Monte Carlo POF
+│   └── Maintenance interpretation and knowledge check
 ├── Fixed Inspection Scheduling
 │   ├── Integrated introduction
 │   └── Open standalone simulation directly
@@ -25,7 +29,10 @@ ALIRIM — Asset Lifecycle Intelligence for Risk & Integrity Management
 
 Each scientific application has its own GitHub repository and Streamlit
 deployment. This repository provides a consistent gateway, documentation, and
-new-tab launch links without duplicating the scientific models. The preferred Fixed
+new-tab launch links. The `education/` folder contains a deliberately small,
+transparent learning model adapted from the inspection repository so students can
+understand the path from ILI measurements to POF before opening the full research
+applications. The preferred Fixed
 Inspection Scheduling introduction is included here, and its button opens the
 standalone simulation directly so users do not pass through two introductions.
 

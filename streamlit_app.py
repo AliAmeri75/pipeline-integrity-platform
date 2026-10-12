@@ -20,6 +20,12 @@ home = st.Page(
     icon=":material/home:",
     default=True,
 )
+education = st.Page(
+    "education/tutorial.py",
+    title="Educational tutorial",
+    icon=":material/school:",
+    url_path="education",
+)
 inspection = st.Page(
     "inspection_project.py",
     title="Fixed inspection scheduling using Bayesian",
@@ -48,6 +54,7 @@ publications = st.Page(
 navigation = st.navigation(
     {
         "ALIRIM": [home],
+        "Learning path": [education],
         "Research applications": [inspection, rl_planning, journal_two],
         "Research resources": [publications],
     }

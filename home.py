@@ -16,6 +16,25 @@ st.markdown(
     )
 )
 
+st.markdown('<div class="section-label">Start here</div>', unsafe_allow_html=True)
+st.markdown(
+    """
+    <section class="learning-grid" aria-label="Educational tutorial">
+      <article class="app-card learning-card">
+        <a class="app-card-main" href="education" target="_self">
+          <span class="app-number">Learn</span>
+          <h3>From ILI Data to a Maintenance Decision</h3>
+          <p>Follow a guided classroom case: learn the limit state, calculate failure
+          pressure, plot input probability densities, estimate POF, interpret the result,
+          and complete a short quiz.</p>
+          <span class="app-link">Open the educational tutorial →</span>
+        </a>
+      </article>
+    </section>
+    """,
+    unsafe_allow_html=True,
+)
+
 st.markdown('<div class="section-label">Research applications</div>', unsafe_allow_html=True)
 st.markdown(
     """

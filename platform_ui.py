@@ -95,6 +95,12 @@ def apply_global_style() -> None:
             letter-spacing: .1em; text-transform: uppercase; margin-top: 1.5rem; }
         .app-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr));
             gap: 1rem; margin: 1rem 0 1.8rem; }
+        .learning-grid { display: grid; grid-template-columns: minmax(0,1fr);
+            margin: 1rem 0 1.8rem; }
+        .learning-card { min-height: 0; border-top-color: var(--alirim-blue);
+            background: linear-gradient(135deg,#fff 0%,#edf6fb 100%); }
+        .learning-card .app-number { width: auto; padding: 0 .8rem;
+            color: #fff; background: var(--alirim-blue); }
         .app-card { display: flex; flex-direction: column; min-height: 265px; padding: 1.2rem;
             color: var(--ink); background: #fff;
             border: 1px solid var(--line); border-top: 5px solid var(--ua-green);
@@ -149,7 +155,7 @@ def apply_global_style() -> None:
         .ili-picture { width: 100%; max-height: 118px; object-fit: contain; }
         .notice { margin: 1rem 0; padding: .9rem 1rem; color: #405047; background: #eef4ef;
             border-left: 4px solid var(--ua-green); border-radius: 6px; }
-        @media (max-width: 850px) { .app-grid { grid-template-columns: 1fr; } }
+        @media (max-width: 850px) { .app-grid, .learning-grid { grid-template-columns: 1fr; } }
         @media (max-width: 700px) {
             .people-grid { grid-template-columns: 1fr; }
             .person-card img { width: 84px; height: 84px; flex-basis: 84px; }
