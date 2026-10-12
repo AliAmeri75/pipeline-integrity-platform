@@ -44,7 +44,7 @@ st.markdown(
       <article class="app-card">
         <a class="app-card-main" href="inspection" target="_self">
           <span class="app-number">I</span>
-          <h3>Multiple Inspection and Excavation</h3>
+          <h3>Static Multiple Inspection and Excavation Planning</h3>
           <p>Compare prior excavation schedules without ILI against ILI-informed
           schedules, then calculate lifecycle-cost value of information.</p>
         </a>
@@ -53,7 +53,7 @@ st.markdown(
       <article class="app-card">
         <a class="app-card-main" href="rl-planning" target="_self">
           <span class="app-number">II</span>
-          <h3>Dynamic Inspection and Maintenance Scheduling</h3>
+          <h3>Dynamic Inspection and Maintenance Planning</h3>
           <p>Train optimal maintenance-only or joint inspection-and-maintenance policies
           for a cracked pipe joint using reinforcement learning.</p>
         </a>
@@ -64,7 +64,7 @@ st.markdown(
       <article class="app-card">
         <a class="app-card-main" href="reliability-voi" target="_self">
           <span class="app-number">III</span>
-          <h3>Single Delayed Inspection</h3>
+          <h3>Static Single Delayed Inspection Planning</h3>
           <p>Evaluate prior and pre-posterior decisions for pipe joints with multiple
           cracks using uploaded or Google Drive-hosted POF datasets.</p>
         </a>

@@ -1,4 +1,4 @@
-"""Introduction and launcher for multiple inspection and excavation."""
+"""Introduction and launcher for static multiple inspection and excavation planning."""
 
 import streamlit as st
 
@@ -12,7 +12,7 @@ from platform_ui import (
 
 render_project_hero(
     "Reliability-based pipeline integrity planning",
-    "Multiple Inspection and Excavation",
+    "Static Multiple Inspection and Excavation Planning",
     "Compare prior excavation intervals without ILI against fixed ILI-informed schedules, optimize lifecycle cost under reliability criteria, and quantify the value of information.",
 )
 render_team()

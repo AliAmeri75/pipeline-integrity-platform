@@ -15,13 +15,13 @@ ALIRIM — Asset Lifecycle Intelligence for Risk & Integrity Management
 │   ├── Guided failure-pressure calculation
 │   ├── Probability-density plots and Monte Carlo POF
 │   └── Maintenance interpretation and knowledge check
-├── Multiple Inspection and Excavation
+├── Static Multiple Inspection and Excavation Planning
 │   ├── Integrated introduction
 │   └── Open standalone simulation directly
-├── Dynamic Inspection and Maintenance Scheduling
+├── Dynamic Inspection and Maintenance Planning
 │   ├── Introduction
 │   └── Open independent application
-├── Single Delayed Inspection — Journal 2
+├── Static Single Delayed Inspection Planning — Journal 2
 │   ├── Introduction
 │   └── Open independent application
 └── Publications, documentation and team
@@ -32,7 +32,7 @@ deployment. This repository provides a consistent gateway, documentation, and
 new-tab launch links. The `education/` folder contains a deliberately small,
 transparent learning model adapted from the inspection repository so students can
 understand the path from ILI measurements to POF before opening the full research
-applications. The preferred Multiple Inspection and Excavation introduction is
+applications. The preferred Static Multiple Inspection and Excavation Planning introduction is
 included here, and its button opens the
 standalone simulation directly so users do not pass through two introductions.
 

@@ -7,7 +7,7 @@ from platform_ui import render_external_cta, render_project_hero
 
 render_project_hero(
     "Risk-informed dynamic decision support",
-    "Dynamic Inspection and Maintenance Scheduling",
+    "Dynamic Inspection and Maintenance Planning",
     "Train and test state-dependent policies for a single cracked pipe joint using reinforcement learning.",
 )
 render_external_cta(

@@ -16,7 +16,7 @@ The model can represent:
 
 ## Typical workflow
 
-1. Select **Multiple Inspection and Excavation** from the platform.
+1. Select **Static Multiple Inspection and Excavation Planning** from the platform.
 2. Open the scheduling simulation.
 3. Enter the Monte Carlo sample size, analysis horizon, and candidate interval range.
 4. Upload a joint/crack CSV or edit the example table directly.

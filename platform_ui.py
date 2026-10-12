@@ -337,7 +337,7 @@ def render_inspection_cta(url: str) -> None:
           </span>
           <span>
             <span class="cta-kicker">Start your analysis</span>
-            <strong class="cta-title">Open the Scheduling and VoI Simulation<span
+            <strong class="cta-title">Open the Planning and VoI Simulation<span
               class="cta-arrow">↗</span></strong>
             <span class="cta-detail">Compare prior excavation and ILI-informed schedules,
               then review their lifecycle costs and VoI.</span>
