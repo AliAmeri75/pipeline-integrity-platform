@@ -26,6 +26,12 @@ education = st.Page(
     icon=":material/school:",
     url_path="education",
 )
+data_integration = st.Page(
+    "data_integration.py",
+    title="Data Integration",
+    icon=":material/table_view:",
+    url_path="data-integration",
+)
 inspection = st.Page(
     "inspection_project.py",
     title="Static Multiple Inspection and Excavation Planning",
@@ -54,6 +60,7 @@ publications = st.Page(
 navigation = st.navigation(
     {
         "ALIRIM": [home],
+        "Data preparation": [data_integration],
         "Learning path": [education],
         "Research applications": [inspection, rl_planning, journal_two],
         "Research resources": [publications],

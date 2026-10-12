@@ -99,7 +99,7 @@ def apply_global_style() -> None:
             letter-spacing: .1em; text-transform: uppercase; margin-top: 1.5rem; }
         .app-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr));
             gap: 1rem; margin: 1rem 0 1.8rem; }
-        .learning-grid { display: grid; grid-template-columns: minmax(0,1fr);
+        .learning-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr));
             margin: 1rem 0 1.8rem; }
         .learning-card { min-height: 0; border-top-color: var(--alirim-blue);
             background: linear-gradient(135deg,#fff 0%,#edf6fb 100%); }

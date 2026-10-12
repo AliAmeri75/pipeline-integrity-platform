@@ -11,6 +11,10 @@ University of Alberta.
 ```text
 ALIRIM — Asset Lifecycle Intelligence for Risk & Integrity Management
 ├── Home and research overview
+├── Data Integration
+│   ├── Upload TCAT/Psqr crack or corrosion profile workbooks
+│   ├── Inspect 2D depth maps and axial maximum-depth profiles
+│   └── Export feature size and location summaries to Excel or CSV
 ├── Educational Tutorial
 │   ├── Guided failure-pressure calculation
 │   ├── Probability-density plots and Monte Carlo POF
@@ -32,7 +36,8 @@ deployment. This repository provides a consistent gateway, documentation, and
 new-tab launch links. The `education/` folder contains a deliberately small,
 transparent learning model adapted from the inspection repository so students can
 understand the path from ILI measurements to POF before opening the full research
-applications. The preferred Static Multiple Inspection and Excavation Planning introduction is
+applications. The Data Integration page prepares grid-profile measurements for those
+planning workflows without modifying the source workbook. The preferred Static Multiple Inspection and Excavation Planning introduction is
 included here, and its button opens the
 standalone simulation directly so users do not pass through two introductions.
 

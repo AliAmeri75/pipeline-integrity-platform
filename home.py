@@ -18,10 +18,19 @@ st.markdown(
     )
 )
 
-st.markdown('<div class="section-label">Start here</div>', unsafe_allow_html=True)
+st.markdown('<div class="section-label">Prepare and learn</div>', unsafe_allow_html=True)
 st.markdown(
     """
-    <section class="learning-grid" aria-label="Educational tutorial">
+    <section class="learning-grid" aria-label="Data preparation and educational tutorial">
+      <article class="app-card learning-card">
+        <a class="app-card-main" href="data-integration" target="_self">
+          <span class="app-number">Data</span>
+          <h3>Data Integration</h3>
+          <p>Upload crack or corrosion grid profiles, visualize depth and length,
+          and export the maximum feature sizes and locations needed for inspection planning.</p>
+          <span class="app-link">Prepare profile data →</span>
+        </a>
+      </article>
       <article class="app-card learning-card">
         <a class="app-card-main" href="education" target="_self">
           <span class="app-number">Learn</span>
