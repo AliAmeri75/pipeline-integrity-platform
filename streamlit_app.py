@@ -56,6 +56,12 @@ publications = st.Page(
     icon=":material/library_books:",
     url_path="publications-team",
 )
+teaching_pilot = st.Page(
+    "teaching_pilot.py",
+    title="Teaching Pilot and Feedback",
+    icon=":material/feedback:",
+    url_path="teaching-pilot",
+)
 
 navigation = st.navigation(
     {
@@ -64,6 +70,7 @@ navigation = st.navigation(
         "Data preparation": [data_integration],
         "Research applications": [inspection, rl_planning, journal_two],
         "Research resources": [publications],
+        "Participate": [teaching_pilot],
     }
 )
 navigation.run()

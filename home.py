@@ -91,3 +91,18 @@ st.markdown(
     'integrity-management procedures.</div>',
     unsafe_allow_html=True,
 )
+
+st.markdown('<div class="section-label">Teaching validation</div>', unsafe_allow_html=True)
+st.markdown(
+    """
+    <a class="external-cta" href="teaching-pilot" target="_self">
+      <span class="external-cta-copy">
+        <strong>Teaching Pilot and Feedback</strong>
+        <span class="external-cta-detail">Help test whether ALIRIM is useful for teaching
+        pipeline integrity to students and early-career learners.</span>
+      </span>
+      <b aria-hidden="true">→</b>
+    </a>
+    """,
+    unsafe_allow_html=True,
+)
