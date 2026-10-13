@@ -23,10 +23,7 @@ st.markdown(
 
     **What visitors do:** Review the short teaching offer and register their email if
     they want to try it or provide feedback.
-
-    **Decision rule:** After the first 10 unique visitors, **3 or more email
-    registrations** supports continuing the pilot. **2 or fewer registrations** means
-    the offer or prototype should be revised before more development.
+    
     """
 )
 
@@ -39,5 +36,5 @@ st.link_button(
 
 st.caption(
     "The pilot records anonymous page views and stores submitted email addresses for "
-    "pilot communication. The registration dashboard is protected for the site owner."
+    "pilot communication."
 )
