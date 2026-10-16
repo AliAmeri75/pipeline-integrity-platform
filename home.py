@@ -32,13 +32,14 @@ st.markdown(
         </a>
       </article>
       <article class="app-card learning-card">
-        <a class="app-card-main" href="education" target="_self">
+        <a class="app-card-main" href="https://alirim-education.streamlit.app/"
+           target="_blank" rel="noopener noreferrer">
           <span class="app-number">Learn</span>
-          <h3>From ILI Data to a Maintenance Decision</h3>
+          <h3>ALIRIM Education</h3>
           <p>Follow a guided classroom case: learn the limit state, calculate failure
           pressure, plot input probability densities, estimate POF, interpret the result,
           and complete a short quiz.</p>
-          <span class="app-link">Open the educational tutorial →</span>
+          <span class="app-link">Open the separate education app ↗</span>
         </a>
       </article>
     </section>

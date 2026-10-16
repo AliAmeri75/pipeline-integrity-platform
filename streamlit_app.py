@@ -21,8 +21,8 @@ home = st.Page(
     default=True,
 )
 education = st.Page(
-    "education/tutorial.py",
-    title="Educational tutorial",
+    "education_launch.py",
+    title="Educational Module",
     icon=":material/school:",
     url_path="education",
 )
