@@ -24,7 +24,7 @@ APP_ROUTES = (
         "keywords": ("learn", "education", "student", "tutorial", "quiz"),
     },
     {
-        "title": "Data Preparation Module",
+        "title": "Data Exploration",
         "path": "/data-integration",
         "purpose": "Upload crack or corrosion profiles, visualize them, and extract sizes and locations.",
         "keywords": ("upload", "profile", "data", "excel", "crack size", "corrosion"),
@@ -110,7 +110,7 @@ Important boundaries:
   help, include one or two clickable Markdown links.
 
 Concept notes:
-- Data Preparation extracts crack or corrosion profile dimensions and locations.
+- Data Exploration visualizes crack or corrosion profiles and extracts dimensions and locations.
 - Preliminary Analysis currently applies the crack-specific CorLAS-based model.
 - Burst resistance pressure is the model-predicted failure pressure.
 - FPR is burst resistance pressure divided by operating pressure.

@@ -64,7 +64,7 @@ st.markdown(
 )
 
 st.markdown(
-    "**Quick links:** [Data Preparation](/data-integration) · "
+    "**Quick links:** [Data Exploration](/data-integration) · "
     "[Preliminary Analysis](/preliminary-analysis) · "
     "[Inspection Planning](/inspection) · [Education](/education)"
 )

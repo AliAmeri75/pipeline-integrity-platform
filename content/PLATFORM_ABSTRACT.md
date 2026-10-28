@@ -5,12 +5,12 @@ risk-informed inspection and maintenance planning for pipelines affected by crac
 including uncertain crack initiation and growth, imperfect inspection information,
 repair effectiveness, failure consequences, and lifecycle cost.
 
-Users can begin in the **Data Preparation Module** to analyze crack or corrosion
+Users can begin in **Data Exploration** to analyze crack or corrosion
 profiles, visualize their measured depths and dimensions, and prepare feature sizes
 and locations. The **Preliminary Analysis** subtopic estimates burst resistance
 pressure, failure pressure ratio (FPR), and probability of failure (POF) for each
-prepared crack profile. These results can then support **Planning against
-Cracks/Corrosion** for inspection and maintenance analysis.
+prepared crack profile. These results can then support **Maintenance Planning
+(Cracks/Corrosion)** for inspection and maintenance analysis.
 
 The platform connects three complementary approaches. Fixed scheduling compares
 candidate inspection intervals for populations of pipe joints. Dynamic planning uses

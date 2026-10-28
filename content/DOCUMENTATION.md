@@ -1,4 +1,4 @@
-## Planning against Cracks/Corrosion
+## Maintenance Planning (Cracks/Corrosion)
 
 | Planning module | Open module |
 |---|---|

@@ -1,4 +1,4 @@
-"""Prepare crack and corrosion profiles for inspection-planning modules."""
+"""Explore crack and corrosion profiles for inspection-planning modules."""
 
 from __future__ import annotations
 
@@ -24,9 +24,9 @@ def _read_profiles(content: bytes) -> tuple[pd.DataFrame, dict[str, pd.DataFrame
 
 
 render_project_hero(
-    "Data Preparation",
-    "Data Preparation Module",
-    "Upload crack or corrosion grid profiles, inspect each depth map, and prepare feature size and location inputs for inspection planning.",
+    "Maintenance Planning (Cracks/Corrosion)",
+    "Data Exploration",
+    "Upload crack or corrosion grid profiles, inspect each depth map, and extract feature size and location inputs for inspection planning.",
 )
 
 st.markdown(
@@ -229,7 +229,7 @@ st.markdown(
 
 st.subheader("Next: Preliminary Analysis")
 st.write(
-    "Use the prepared crack dimensions to estimate burst resistance pressure, "
+    "Use the explored crack dimensions to estimate burst resistance pressure, "
     "failure pressure ratio (FPR), and probability of failure (POF) for each profile."
 )
 st.markdown(
@@ -238,7 +238,7 @@ st.markdown(
       <span class="external-cta-copy">
         <strong>Open Preliminary Analysis</strong>
         <span class="external-cta-detail">Calculate burst resistance pressure,
-        FPR, and POF for each prepared crack profile.</span>
+        FPR, and POF for each crack profile.</span>
       </span>
       <b aria-hidden="true">→</b>
     </a>

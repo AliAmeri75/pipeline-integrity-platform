@@ -32,18 +32,18 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-st.markdown('<div class="section-label">Prepare and Learn</div>', unsafe_allow_html=True)
+st.markdown('<div class="section-label">Explore and Learn</div>', unsafe_allow_html=True)
 st.markdown(
     """
-    <section class="learning-grid" aria-label="Data Preparation and Educational Tutorial">
+    <section class="learning-grid" aria-label="Data Exploration and Educational Tutorial">
       <article class="app-card learning-card">
         <a class="app-card-main" href="data-integration" target="_self">
           <span class="app-number">Data</span>
-          <h3>Data Preparation Module</h3>
+          <h3>Data Exploration</h3>
           <p>Upload and analyze crack or corrosion grid profiles, visualize their
           depth and dimensions, then perform a preliminary crack analysis for burst
           resistance pressure, FPR, and POF.</p>
-          <span class="app-link">Prepare profile data →</span>
+          <span class="app-link">Explore profile data →</span>
         </a>
       </article>
       <article class="app-card learning-card">
@@ -62,10 +62,10 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-st.markdown('<div class="section-label">Planning against Cracks/Corrosion</div>', unsafe_allow_html=True)
+st.markdown('<div class="section-label">Maintenance Planning (Cracks/Corrosion)</div>', unsafe_allow_html=True)
 st.markdown(
     """
-    <section class="app-grid" aria-label="Planning against Cracks or Corrosion">
+    <section class="app-grid" aria-label="Maintenance Planning for Cracks or Corrosion">
       <article class="app-card">
         <a class="app-card-main" href="inspection" target="_self">
           <span class="app-number">I</span>
@@ -101,8 +101,8 @@ st.markdown(
 )
 
 st.markdown(
-    '<div class="notice"><strong>Research-use notice.</strong> The Planning against '
-    'Cracks/Corrosion modules are '
+    '<div class="notice"><strong>Research-use notice.</strong> The Maintenance Planning '
+    '(Cracks/Corrosion) modules are '
     'decision-support prototypes. Results require engineering review and do not replace '
     'applicable codes, regulatory requirements, ILI validation, or an operator’s '
     'integrity-management procedures.</div>',

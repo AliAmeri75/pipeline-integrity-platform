@@ -42,7 +42,7 @@ def _run_analysis(
 
 
 render_project_hero(
-    "Data Preparation",
+    "Maintenance Planning (Cracks/Corrosion)",
     "Preliminary Analysis",
     "Estimate burst resistance pressure, failure pressure ratio (FPR), and probability of failure (POF) for each prepared crack profile.",
 )
@@ -62,7 +62,7 @@ prepared_type = st.session_state.get("prepared_profile_defect_type")
 prepared_name = st.session_state.get("prepared_profile_source_name", "prepared workbook")
 source_options = ["Sample crack profiles", "Upload your workbook"]
 if prepared_content is not None and prepared_type == "Crack":
-    source_options.insert(0, "Use profiles from Data Preparation")
+    source_options.insert(0, "Use profiles from Data Exploration")
 elif prepared_content is not None:
     st.info(
         "The profiles currently prepared in this session are labelled as corrosion. "
@@ -75,9 +75,9 @@ data_source = st.radio(
     label_visibility="collapsed",
 )
 
-if data_source == "Use profiles from Data Preparation":
+if data_source == "Use profiles from Data Exploration":
     source_content = prepared_content
-    st.info(f"Using {prepared_name} from the Data Preparation Module.")
+    st.info(f"Using {prepared_name} from Data Exploration.")
 elif data_source == "Sample crack profiles":
     source_content = synthetic_sample_workbook()
     st.info("Sample data for crack profiles.")
@@ -87,7 +87,7 @@ else:
         type=["xlsm", "xlsx"],
         help=(
             "Use the same TCAT/Psqr-style profile workbook accepted by the "
-            "Data Preparation Module."
+            "Data Exploration page."
         ),
     )
     source_content = uploaded_file.getvalue() if uploaded_file is not None else None
