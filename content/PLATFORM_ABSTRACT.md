@@ -5,11 +5,16 @@ risk-informed inspection and maintenance planning for pipelines affected by crac
 including uncertain crack initiation and growth, imperfect inspection information,
 repair effectiveness, failure consequences, and lifecycle cost.
 
+Users can begin in the **Data Preparation Module** to analyze crack or corrosion
+profiles, visualize their measured depths and dimensions, and prepare feature sizes
+and locations. These prepared inputs can then support the platform's **Planning
+Modules** for inspection and maintenance analysis.
+
 The platform connects three complementary approaches. Fixed scheduling compares
 candidate inspection intervals for populations of pipe joints. Dynamic planning uses
 reinforcement learning to obtain state-dependent maintenance and inspection policies
 for an individual cracked joint. Reliability and value-of-information analysis examines
 whether and when inspection information changes repair decisions enough to justify its
-cost. Together, these applications provide a transparent research environment for
+cost. Together, these Planning Modules provide a transparent research environment for
 exploring how uncertainty, risk, cost, and information affect pipeline-integrity
 decisions.

@@ -28,7 +28,7 @@ education = st.Page(
 )
 data_integration = st.Page(
     "data_integration.py",
-    title="Data Integration",
+    title="Data Preparation Module",
     icon=":material/table_view:",
     url_path="data-integration",
 )
@@ -68,7 +68,7 @@ navigation = st.navigation(
         "ALIRIM": [home],
         "Learning path": [education],
         "Data preparation": [data_integration],
-        "Research applications": [inspection, rl_planning, journal_two],
+        "Planning Modules": [inspection, rl_planning, journal_two],
         "Research resources": [publications],
         "Participate": [teaching_pilot],
     }

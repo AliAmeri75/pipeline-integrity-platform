@@ -1,6 +1,6 @@
-## Research applications
+## Planning Modules
 
-| Research component | Application |
+| Planning module | Open module |
 |---|---|
 | Static Multiple Inspection and Excavation Planning | [Open application](https://pipeline-inspection-appgit-qjifsvi4zeuyuchaueiuwm.streamlit.app/inspection_planner) |
 | Dynamic Inspection and Maintenance Planning | [Open application](https://pipeline-rl-planning.streamlit.app/) |

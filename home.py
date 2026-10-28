@@ -25,9 +25,10 @@ st.markdown(
       <article class="app-card learning-card">
         <a class="app-card-main" href="data-integration" target="_self">
           <span class="app-number">Data</span>
-          <h3>Data Integration</h3>
-          <p>Upload crack or corrosion grid profiles, visualize depth and length,
-          and export the maximum feature sizes and locations needed for inspection planning.</p>
+          <h3>Data Preparation Module</h3>
+          <p>Upload and analyze crack or corrosion grid profiles, visualize their
+          depth and dimensions, and export the feature sizes and locations required
+          by the Planning Modules.</p>
           <span class="app-link">Prepare profile data →</span>
         </a>
       </article>
@@ -47,10 +48,10 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-st.markdown('<div class="section-label">Research applications</div>', unsafe_allow_html=True)
+st.markdown('<div class="section-label">Planning Modules</div>', unsafe_allow_html=True)
 st.markdown(
     """
-    <section class="app-grid" aria-label="Research applications">
+    <section class="app-grid" aria-label="Planning Modules">
       <article class="app-card">
         <a class="app-card-main" href="inspection" target="_self">
           <span class="app-number">I</span>
@@ -86,7 +87,7 @@ st.markdown(
 )
 
 st.markdown(
-    '<div class="notice"><strong>Research-use notice.</strong> The applications are '
+    '<div class="notice"><strong>Research-use notice.</strong> The Planning Modules are '
     'decision-support prototypes. Results require engineering review and do not replace '
     'applicable codes, regulatory requirements, ILI validation, or an operator’s '
     'integrity-management procedures.</div>',
