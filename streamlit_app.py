@@ -80,7 +80,7 @@ navigation = st.navigation(
         "ALIRIM": [home],
         "Learning Path": [education],
         "Data Preparation": [data_integration],
-        "Design": [pipeline_design],
+        "Pipe Design": [pipeline_design],
         "Maintenance Planning (Cracks/Corrosion)": [inspection, rl_planning, journal_two],
         "Maintenance Planning (Geohazards)": [geohazard_planning],
         "Research Resources": [publications],
