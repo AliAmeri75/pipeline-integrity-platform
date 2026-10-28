@@ -28,7 +28,7 @@ st.markdown(
           <h3>Data Preparation Module</h3>
           <p>Upload and analyze crack or corrosion grid profiles, visualize their
           depth and dimensions, and export the feature sizes and locations required
-          by the Planning Modules.</p>
+          by the Planning modules.</p>
           <span class="app-link">Prepare profile data →</span>
         </a>
       </article>
@@ -48,10 +48,10 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-st.markdown('<div class="section-label">Planning Modules</div>', unsafe_allow_html=True)
+st.markdown('<div class="section-label">Planning modules</div>', unsafe_allow_html=True)
 st.markdown(
     """
-    <section class="app-grid" aria-label="Planning Modules">
+    <section class="app-grid" aria-label="Planning modules">
       <article class="app-card">
         <a class="app-card-main" href="inspection" target="_self">
           <span class="app-number">I</span>
