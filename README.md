@@ -53,6 +53,21 @@ streamlit run streamlit_app.py
 ## Deploy
 
 Deploy `streamlit_app.py` from the repository root on Streamlit Community Cloud.
+
+## Configure the ALIRIM Assistant
+
+The assistant uses the OpenAI Responses API. A ChatGPT subscription does not
+automatically provide API access; configure a separate OpenAI project API key.
+
+1. Create a dedicated project and API key in the OpenAI Platform.
+2. Set a conservative project budget and usage limits before making the chatbot public.
+3. In Streamlit Community Cloud, open **Manage app → Settings → Secrets**.
+4. Copy the fields from `.streamlit/secrets.example.toml` and replace only the API-key placeholder.
+5. Save the secrets and reboot the Streamlit app.
+6. Open **ALIRIM Assistant** from the app navigation and test a concept and a navigation question.
+
+Never commit `.streamlit/secrets.toml` or a real API key. The public assistant also
+limits prompt length, response length, and the number of questions per browser session.
 No secret or large scientific dataset is required by this gateway. Each launch
 page opens the corresponding independently deployed research application in a new
 tab, avoiding Streamlit's cross-origin frame restriction.

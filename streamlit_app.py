@@ -20,6 +20,12 @@ home = st.Page(
     icon=":material/home:",
     default=True,
 )
+assistant = st.Page(
+    "assistant.py",
+    title="ALIRIM Assistant",
+    icon=":material/smart_toy:",
+    url_path="assistant",
+)
 education = st.Page(
     "education_launch.py",
     title="Educational Module",
@@ -83,7 +89,7 @@ teaching_pilot = st.Page(
 
 navigation = st.navigation(
     {
-        "ALIRIM": [home],
+        "ALIRIM": [home, assistant],
         "Learning Path": [education],
         "Data Preparation": [data_integration, preliminary_analysis],
         "Pipeline Design": [pipeline_design],

@@ -18,6 +18,20 @@ st.markdown(
     )
 )
 
+st.markdown(
+    """
+    <a class="external-cta" href="assistant" target="_self">
+      <span class="external-cta-copy">
+        <strong>Ask the ALIRIM Assistant</strong>
+        <span class="external-cta-detail">Get a plain-language explanation or find
+        the right module for your task.</span>
+      </span>
+      <b aria-hidden="true">→</b>
+    </a>
+    """,
+    unsafe_allow_html=True,
+)
+
 st.markdown('<div class="section-label">Prepare and Learn</div>', unsafe_allow_html=True)
 st.markdown(
     """

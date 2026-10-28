@@ -3,6 +3,7 @@
 __pycache__/
 *.py[cod]
 .pytest_cache/
+.streamlit/secrets.toml
 
 # Journal 2 POF arrays are synchronized at runtime and must not be committed.
 Data_CC/
