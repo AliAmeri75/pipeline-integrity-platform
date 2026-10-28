@@ -66,10 +66,10 @@ teaching_pilot = st.Page(
 navigation = st.navigation(
     {
         "ALIRIM": [home],
-        "Learning path": [education],
-        "Data preparation": [data_integration],
+        "Learning Path": [education],
+        "Data Preparation": [data_integration],
         "Planning Modules": [inspection, rl_planning, journal_two],
-        "Research resources": [publications],
+        "Research Resources": [publications],
         "Participate": [teaching_pilot],
     }
 )

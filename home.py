@@ -18,10 +18,10 @@ st.markdown(
     )
 )
 
-st.markdown('<div class="section-label">Prepare and learn</div>', unsafe_allow_html=True)
+st.markdown('<div class="section-label">Prepare and Learn</div>', unsafe_allow_html=True)
 st.markdown(
     """
-    <section class="learning-grid" aria-label="Data preparation and educational tutorial">
+    <section class="learning-grid" aria-label="Data Preparation and Educational Tutorial">
       <article class="app-card learning-card">
         <a class="app-card-main" href="data-integration" target="_self">
           <span class="app-number">Data</span>
