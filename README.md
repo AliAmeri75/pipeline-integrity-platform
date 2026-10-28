@@ -68,9 +68,11 @@ automatically provide API access; configure a separate OpenAI project API key.
 
 Never commit `.streamlit/secrets.toml` or a real API key. The public assistant also
 limits prompt length, response length, and the number of questions per browser session.
-No secret or large scientific dataset is required by this gateway. Each launch
-page opens the corresponding independently deployed research application in a new
-tab, avoiding Streamlit's cross-origin frame restriction.
+The core gateway and research launch pages do not require a secret or a large
+scientific dataset; only the optional ALIRIM Assistant requires the OpenAI API
+secret described above. Each launch page opens the corresponding independently
+deployed research application in a new tab, avoiding Streamlit's cross-origin
+frame restriction.
 
 ## Editable content
 
