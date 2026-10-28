@@ -10,7 +10,7 @@ render_platform_hero()
 st.markdown("## Team")
 render_team(show_contacts=True)
 
-st.markdown('<div class="section-label">Research overview</div>', unsafe_allow_html=True)
+st.markdown('<div class="section-label">Research Overview</div>', unsafe_allow_html=True)
 st.markdown(
     editable_markdown(
         "PLATFORM_ABSTRACT.md",
@@ -28,7 +28,7 @@ st.markdown(
           <h3>Data Preparation Module</h3>
           <p>Upload and analyze crack or corrosion grid profiles, visualize their
           depth and dimensions, and export the feature sizes and locations required
-          by the Planning modules.</p>
+          by the Planning against Cracks/Corrosion modules.</p>
           <span class="app-link">Prepare profile data →</span>
         </a>
       </article>
@@ -48,10 +48,10 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-st.markdown('<div class="section-label">Planning modules</div>', unsafe_allow_html=True)
+st.markdown('<div class="section-label">Planning against Cracks/Corrosion</div>', unsafe_allow_html=True)
 st.markdown(
     """
-    <section class="app-grid" aria-label="Planning modules">
+    <section class="app-grid" aria-label="Planning against Cracks or Corrosion">
       <article class="app-card">
         <a class="app-card-main" href="inspection" target="_self">
           <span class="app-number">I</span>
@@ -87,14 +87,40 @@ st.markdown(
 )
 
 st.markdown(
-    '<div class="notice"><strong>Research-use notice.</strong> The Planning Modules are '
+    '<div class="notice"><strong>Research-use notice.</strong> The Planning against '
+    'Cracks/Corrosion modules are '
     'decision-support prototypes. Results require engineering review and do not replace '
     'applicable codes, regulatory requirements, ILI validation, or an operator’s '
     'integrity-management procedures.</div>',
     unsafe_allow_html=True,
 )
 
-st.markdown('<div class="section-label">Teaching validation</div>', unsafe_allow_html=True)
+st.markdown('<div class="section-label">Future Modules</div>', unsafe_allow_html=True)
+st.markdown(
+    """
+    <section class="learning-grid" aria-label="Future Modules">
+      <article class="app-card learning-card">
+        <a class="app-card-main" href="pipeline-design" target="_self">
+          <span class="app-number">Design</span>
+          <h3>Pipeline Design</h3>
+          <p>This topic is under construction.</p>
+          <span class="app-link app-status">Under Construction</span>
+        </a>
+      </article>
+      <article class="app-card learning-card">
+        <a class="app-card-main" href="geohazard-planning" target="_self">
+          <span class="app-number">Geo</span>
+          <h3>Planning for Geohazards</h3>
+          <p>This topic is under construction.</p>
+          <span class="app-link app-status">Under Construction</span>
+        </a>
+      </article>
+    </section>
+    """,
+    unsafe_allow_html=True,
+)
+
+st.markdown('<div class="section-label">Teaching Validation</div>', unsafe_allow_html=True)
 st.markdown(
     """
     <a class="external-cta" href="teaching-pilot" target="_self">

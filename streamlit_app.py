@@ -32,6 +32,12 @@ data_integration = st.Page(
     icon=":material/table_view:",
     url_path="data-integration",
 )
+pipeline_design = st.Page(
+    "pipeline_design.py",
+    title="Pipeline Design",
+    icon=":material/architecture:",
+    url_path="pipeline-design",
+)
 inspection = st.Page(
     "inspection_project.py",
     title="Static Multiple Inspection and Excavation Planning",
@@ -49,6 +55,12 @@ journal_two = st.Page(
     title="Static Single Delayed Inspection Planning",
     icon=":material/monitoring:",
     url_path="reliability-voi",
+)
+geohazard_planning = st.Page(
+    "geohazard_planning.py",
+    title="Planning for Geohazards",
+    icon=":material/landscape:",
+    url_path="geohazard-planning",
 )
 publications = st.Page(
     "publications_team.py",
@@ -68,7 +80,9 @@ navigation = st.navigation(
         "ALIRIM": [home],
         "Learning Path": [education],
         "Data Preparation": [data_integration],
-        "Planning Modules": [inspection, rl_planning, journal_two],
+        "Pipeline Design": [pipeline_design],
+        "Planning against Cracks/Corrosion": [inspection, rl_planning, journal_two],
+        "Planning for Geohazards": [geohazard_planning],
         "Research Resources": [publications],
         "Participate": [teaching_pilot],
     }
