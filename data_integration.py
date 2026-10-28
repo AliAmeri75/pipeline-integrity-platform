@@ -7,6 +7,7 @@ import pandas as pd
 import streamlit as st
 
 from platform_ui import render_project_hero
+from profile_map import render_profile_location_map
 from profile_data import (
     ProfileFormatError,
     maximum_depth_envelope,
@@ -15,6 +16,10 @@ from profile_data import (
     summary_for_defect_type,
     summary_xlsx,
     synthetic_sample_workbook,
+)
+from profile_visuals import (
+    measured_profile_on_pipe_figure,
+    render_linked_measured_profile,
 )
 
 
@@ -130,46 +135,36 @@ metric_columns[2].metric(
 metric_columns[3].metric("Profile length", f"{selected_row['Profile length (mm)']:,.1f} mm")
 
 st.caption(
-    "Profile axes show position in millimetres. The coloured grid values show crack depth "
-    "as a percentage of wall thickness (%WT), not as millimetres."
+    "Profile axes show position in millimetres. When wall thickness is available, "
+    "colour and tooltips show depth in millimetres; otherwise they show %WT."
 )
 
-depth_domain = [0.0, max(float(selected_row["Maximum depth (%WT)"]), 1.0)]
-heatmap = (
-    alt.Chart(selected_profile)
-    .mark_rect()
-    .encode(
-        x=alt.X("Axial cell start (mm):Q", title="Axial distance from profile start (mm)"),
-        x2="Axial cell end (mm):Q",
-        y=alt.Y("Circumferential cell start (mm):Q", title="Circumferential distance (mm)"),
-        y2="Circumferential cell end (mm):Q",
-        color=alt.Color(
-            "Depth (%WT):Q",
-            title="Depth (%WT)",
-            scale=alt.Scale(domain=depth_domain, scheme="yelloworangered"),
-        ),
-        tooltip=[
-            alt.Tooltip("Axial offset (mm):Q", format=".2f"),
-            alt.Tooltip("Circumferential offset (mm):Q", format=".2f"),
-            alt.Tooltip("Depth (%WT):Q", format=".2f"),
-        ],
-    )
-    .properties(height=390, title=f"Depth map · profile {selected_profile_id}")
+st.markdown("#### Measured 2D and 3D profile")
+st.write(
+    "Move the pointer over either figure to inspect the same measured cell in both "
+    "views. Colour and the readout show the recorded depth; the 3D vertical scale is "
+    "enlarged only to make the shape visible."
 )
-
-max_depth_rows = selected_profile[
-    selected_profile["Depth (%WT)"] == selected_profile["Depth (%WT)"].max()
-]
-maximum_marker = (
-    alt.Chart(max_depth_rows)
-    .mark_point(filled=True, color="#155987", size=95, stroke="white", strokeWidth=1.5)
-    .encode(
-        x="Axial offset (mm):Q",
-        y="Circumferential offset (mm):Q",
-        tooltip=[alt.Tooltip("Depth (%WT):Q", title="Maximum depth (%WT)", format=".2f")],
-    )
+render_linked_measured_profile(
+    selected_profile,
+    selected_row["Wall thickness (mm)"],
+    selected_profile_id,
 )
-st.altair_chart(heatmap + maximum_marker, width="stretch")
+st.caption(
+    "The next view places the measured grid on a pipe for context. The surface "
+    "depression is enlarged so it can be seen; colour and tooltips retain the "
+    "measured depth."
+)
+st.plotly_chart(
+    measured_profile_on_pipe_figure(
+        selected_profile,
+        selected_row["Wall thickness (mm)"],
+        selected_row["Outside diameter (mm)"],
+        selected_profile_id,
+        defect_type,
+    ),
+    width="stretch",
+)
 
 envelope = maximum_depth_envelope(selected_profile)
 profile_area = (
@@ -186,6 +181,14 @@ profile_area = (
     .properties(height=275, title="Maximum-depth profile along feature length")
 )
 st.altair_chart(profile_area, width="stretch")
+
+st.subheader("Pipeline and defect locations")
+st.write(
+    "Draw the pipeline on a street or satellite map. The app places every profile at "
+    "its recorded chainage and assigns profiles within the same 12 m interval to one "
+    "pipe joint. Select a profile above to highlight it on the map."
+)
+render_profile_location_map(summary, selected_profile_id)
 
 st.subheader("Size and location output")
 if defect_type == "Crack":
