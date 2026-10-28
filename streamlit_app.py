@@ -32,6 +32,12 @@ data_integration = st.Page(
     icon=":material/table_view:",
     url_path="data-integration",
 )
+preliminary_analysis = st.Page(
+    "preliminary_analysis.py",
+    title="Preliminary Analysis",
+    icon=":material/analytics:",
+    url_path="preliminary-analysis",
+)
 pipeline_design = st.Page(
     "pipeline_design.py",
     title="Pipeline Design",
@@ -79,7 +85,7 @@ navigation = st.navigation(
     {
         "ALIRIM": [home],
         "Learning Path": [education],
-        "Data Preparation": [data_integration],
+        "Data Preparation": [data_integration, preliminary_analysis],
         "Pipeline Design": [pipeline_design],
         "Maintenance Planning (Cracks/Corrosion)": [inspection, rl_planning, journal_two],
         "Maintenance Planning (Geohazards)": [geohazard_planning],

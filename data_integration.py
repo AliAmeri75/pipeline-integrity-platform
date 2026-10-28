@@ -24,8 +24,8 @@ def _read_profiles(content: bytes) -> tuple[pd.DataFrame, dict[str, pd.DataFrame
 
 
 render_project_hero(
-    "Data preparation",
-    "Data Integration",
+    "Data Preparation",
+    "Data Preparation Module",
     "Upload crack or corrosion grid profiles, inspect each depth map, and prepare feature size and location inputs for inspection planning.",
 )
 
@@ -100,6 +100,9 @@ defect_type = st.selectbox(
     help="This label is included in the downloaded size-and-location table.",
 )
 summary = summary_for_defect_type(summary, defect_type)
+st.session_state["prepared_profile_workbook"] = source_content
+st.session_state["prepared_profile_source_name"] = source_name
+st.session_state["prepared_profile_defect_type"] = defect_type
 
 profile_ids = summary["Profile ID"].astype(str).tolist()
 selected_profile_id = st.selectbox(
@@ -221,5 +224,24 @@ download_columns[1].download_button(
 st.markdown(
     '<div class="notice"><strong>Review before use.</strong> Confirm the detected units, '
     'feature identifiers, and profile boundaries before passing the summary to an inspection-planning model.</div>',
+    unsafe_allow_html=True,
+)
+
+st.subheader("Next: Preliminary Analysis")
+st.write(
+    "Use the prepared crack dimensions to estimate burst resistance pressure, "
+    "failure pressure ratio (FPR), and probability of failure (POF) for each profile."
+)
+st.markdown(
+    """
+    <a class="external-cta" href="preliminary-analysis" target="_self">
+      <span class="external-cta-copy">
+        <strong>Open Preliminary Analysis</strong>
+        <span class="external-cta-detail">Calculate burst resistance pressure,
+        FPR, and POF for each prepared crack profile.</span>
+      </span>
+      <b aria-hidden="true">→</b>
+    </a>
+    """,
     unsafe_allow_html=True,
 )

@@ -27,8 +27,8 @@ st.markdown(
           <span class="app-number">Data</span>
           <h3>Data Preparation Module</h3>
           <p>Upload and analyze crack or corrosion grid profiles, visualize their
-          depth and dimensions, and export the feature sizes and locations required
-          by the Planning against Cracks/Corrosion modules.</p>
+          depth and dimensions, then perform a preliminary crack analysis for burst
+          resistance pressure, FPR, and POF.</p>
           <span class="app-link">Prepare profile data →</span>
         </a>
       </article>
