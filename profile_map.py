@@ -11,6 +11,7 @@ import pandas as pd
 import streamlit as st
 from folium.plugins import Draw
 from streamlit_folium import st_folium
+from map_presentation import readable_map_overlays
 
 
 EARTH_RADIUS_KM = 6371.0088
@@ -413,6 +414,7 @@ def render_profile_location_map(
         edit_options={"edit": False, "remove": True},
     ).add_to(pipeline_map)
     folium.LayerControl(collapsed=False).add_to(pipeline_map)
+    readable_map_overlays(pipeline_map)
     map_result = st_folium(
         pipeline_map,
         height=560,

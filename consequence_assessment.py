@@ -6,6 +6,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 from streamlit_folium import st_folium
+from map_presentation import readable_map_overlays
 from profile_map import point_at_chainage,route_length_km
 from reliability_model import consequence_template
 from consequence_model import (HazardScenario,PIR,THERMAL,RADIUS,PIR_SOURCE,THERMAL_SOURCE,
@@ -137,7 +138,7 @@ def render_consequence_assessment(route,segment_table=None):
                 tooltip=f'{mode}: radius {row[f"{mode}_radius_m"]:.1f} m; '
                         f'people in footprint {row[f"{mode}_people_in_footprint"]:.2f}').add_to(m)
         folium.Marker(centre,tooltip=f'Section {section_id} representative release point').add_to(m)
-        st_folium(m,height=430,width=1100,returned_objects=[],key=f'ca_map_{signature}_{section_id}')
+        st_folium(readable_map_overlays(m),height=430,width=1100,returned_objects=[],key=f'ca_map_{signature}_{section_id}')
         st.caption('Impact circles may overlap or cross section boundaries. Do not sum their population counts as unique residents. '
                    'A real route needs exposure assessment along the section and GIS/census data; no such data are fetched automatically.')
         st.download_button('Download full consequence assessment',results.to_csv(index=False),

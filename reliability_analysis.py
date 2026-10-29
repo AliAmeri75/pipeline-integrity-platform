@@ -5,6 +5,7 @@ import numpy as np
 import plotly.graph_objects as go
 from branca.colormap import LinearColormap
 from profile_map import route_length_km, point_at_chainage
+from map_presentation import readable_map_overlays
 
 
 def result_map(route, features, sections, column, label, pof_limit=None):
@@ -41,7 +42,7 @@ def result_map(route, features, sections, column, label, pof_limit=None):
                   f'{label}: {number(section[column])}').add_to(m)
     folium.LayerControl().add_to(m)
     m.fit_bounds(route)
-    return m
+    return readable_map_overlays(m)
 
 
 def profile_figure(sections, columns, title, y_label):
