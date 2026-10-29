@@ -32,8 +32,8 @@ APP_ROUTES = (
     {
         "title": "Preliminary Analysis",
         "path": "/preliminary-analysis",
-        "purpose": "Estimate crack burst resistance pressure, FPR, and Monte Carlo POF.",
-        "keywords": ("pof", "probability", "fpr", "burst", "failure pressure", "preliminary"),
+        "purpose": "Tabs for deterministic crack FPR with selectable 3D profiles, risk/reliability maps, and consequence assessment.",
+        "keywords": ("pof", "probability", "fpr", "burst", "failure pressure", "preliminary", "deterministic", "reliability", "consequence", "3d"),
     },
     {
         "title": "Pipeline Design",
@@ -111,7 +111,10 @@ Important boundaries:
 
 Concept notes:
 - Data Exploration visualizes crack or corrosion profiles and extracts dimensions and locations.
-- Preliminary Analysis currently applies the crack-specific CorLAS-based model.
+- Preliminary Analysis has Deterministic Analysis, Risk & Reliability, and Consequence Assessment tabs.
+- Deterministic Analysis calculates crack resistance/FPR without Monte Carlo; click a row or FPR point to view measured 3D geometry.
+- Risk & Reliability contains POF calculations and mapped section risk. Consequence Assessment provides radius/exposure screening.
+- Corrosion geometry can be viewed, but corrosion FPR needs a corrosion resistance model; corrosion Pf can be imported.
 - Burst resistance pressure is the model-predicted failure pressure.
 - FPR is burst resistance pressure divided by operating pressure.
 - POF is the estimated probability that the defined limit state is reached or exceeded.

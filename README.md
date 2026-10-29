@@ -41,9 +41,23 @@ planning workflows without modifying the source workbook. The preferred Static M
 included here, and its button opens the
 standalone simulation directly so users do not pass through two introductions.
 
-## Standalone Reliability Analysis
+## Preliminary Analysis
 
-Under **Maintenance Planning (Cracks/Corrosion) → Reliability Analysis**, calculate
+Under **Maintenance Planning (Cracks/Corrosion) → Preliminary Analysis**, switch
+between **Deterministic Analysis**, **Risk & Reliability** and **Consequence Assessment**.
+There is no separate Reliability Analysis sidebar entry.
+
+The deterministic tab calculates resistance and FPR for each measured crack
+without Monte Carlo, POF controls or probability outputs. FPR is unadjusted burst
+resistance divided by operating pressure. Click a result-table row or FPR plot
+point to select the defect and view its measured geometry on a 3D pipe, using
+the same renderer as Data Exploration. A linked measured 2D/3D view is also
+available. The lowest calculated FPR is summarized for each represented nominal
+1 km section; this is not a segment reliability calculation or proof of safety.
+No route endpoint is inferred from the profile workbook. Unsupported corrosion
+resistance remains unavailable; corrosion geometry can still be visualized.
+
+In the **Risk & Reliability** tab, calculate
 feature Pf and map fixed 1 km sections with consequences and risk, without running any scheduling
 study. The page includes a fictional 100 km Alberta route and crack CSV, route
 drawing/GeoJSON upload, CSV defect input, and prepared profiles from Data Exploration.
@@ -102,7 +116,8 @@ saved results; display switches retain them without rerunning Monte Carlo.
 
 ### Consequence Assessment workspace
 
-Open **Reliability Analysis → Consequence Assessment** after selecting a route.
+Open **Preliminary Analysis → Consequence Assessment** after selecting a route
+in the Risk & Reliability tab.
 Choose separate burst and leakage scenarios:
 
 - **Natural-gas PIR**, burst only: `r_m = 0.3048 * 0.69 * nominal_diameter_in * sqrt(MAOP_psi)`.
@@ -135,8 +150,8 @@ There is no automatic value of life, environmental-loss or business-interruption
 calculation. Do not add unrelated units or double-count shared losses.
 
 Download full results with parameters, references and input source. Select a
-measure, click **Use these consequences in Reliability and Risk**, return to that
-workspace and select **Use Consequence Assessment**. Exposure transfers in people
+measure, click **Use these consequences in Risk & Reliability**, return to that
+tab and select **Use Consequence Assessment**. Exposure transfers in people
 potentially exposed; economics transfers in the specified currency. Saved inputs
 must match the route. Risk export metadata identifies the source scenario.
 

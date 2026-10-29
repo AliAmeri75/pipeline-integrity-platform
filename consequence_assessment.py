@@ -44,6 +44,8 @@ def hazard_controls(mode,natural_gas):
 
 def render_consequence_assessment(route):
     st.subheader('Consequence Assessment')
+    if st.session_state.pop('ca_transfer_notice',False):
+        st.success('Saved. Open the Risk & Reliability tab, then select Use Consequence Assessment under Consequence data.')
     st.write('Estimate impact radius and people potentially exposed for a representative event in each fixed 1 km section.')
     st.info('Exposure is not a prediction of injuries or fatalities. This screening assumes uniform local population density '
             'inside each impact circle. The circle is centred at the section midpoint; it does not cover every possible release point.')
@@ -140,10 +142,11 @@ def render_consequence_assessment(route):
         export = consequence_risk_inputs(results,kind)
         st.download_button('Download risk-ready consequence table',export.assign(consequence_unit=unit).to_csv(index=False),
                            'modeled_section_consequences.csv','text/csv')
-        if st.button('Use these consequences in Reliability and Risk'):
+        if st.button('Use these consequences in Risk & Reliability'):
             st.session_state.modeled_consequences = dict(route=route,table=export,unit=unit,
                 source_signature=signature,measure=measure)
-            st.success('Saved. Open Reliability and Risk above, then select Use Consequence Assessment under Consequence data.')
+            st.session_state.ca_transfer_notice = True
+            st.rerun()
     with st.expander('Model references and scope'):
         st.markdown(f'- [49 CFR 192.903: natural-gas PIR]({PIR_SOURCE}) — MAOP and nominal diameter; rupture screening, not a leakage or fatalities model.\n'
                     f'- [McGrattan, Baum & Hamins (2000), NISTIR 6546, Equation 7]({THERMAL_SOURCE}) — point-source thermal flux; no near-field or transient pipeline-release validation is implied.\n'

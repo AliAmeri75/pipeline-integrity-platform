@@ -1,7 +1,8 @@
 import unittest
+from unittest.mock import patch
 
 from education.pof_model import POFInputs, UncertaintyInputs
-from preliminary_analysis_model import analyze_crack_profiles
+from preliminary_analysis_model import analyze_crack_profiles,analyze_deterministic_profiles
 from profile_data import (
     parse_profile_workbook,
     summary_for_defect_type,
@@ -10,6 +11,24 @@ from profile_data import (
 
 
 class PreliminaryAnalysisTests(unittest.TestCase):
+    def test_deterministic_mode_never_runs_monte_carlo(self):
+        summary,_ = parse_profile_workbook(synthetic_sample_workbook())
+        cracks = summary_for_defect_type(summary,'Crack')
+        with patch('preliminary_analysis_model.simulate_probability_of_failure',side_effect=AssertionError('Monte Carlo called')) as simulation:
+            result = analyze_deterministic_profiles(cracks,POFInputs(operating_pressure_psi=936.))
+        simulation.assert_not_called()
+        self.assertNotIn('POF',result)
+        self.assertNotIn('Monte Carlo samples',result)
+        self.assertTrue((result.Status=='Calculated').all())
+        self.assertTrue(((result['Burst resistance pressure (psi)']/936.-result.FPR).abs()<1e-12).all())
+
+    def test_corrosion_fpr_is_unknown_not_crack_model(self):
+        summary,_ = parse_profile_workbook(synthetic_sample_workbook())
+        corrosion = summary_for_defect_type(summary,'Corrosion / metal loss')
+        result = analyze_deterministic_profiles(corrosion,POFInputs())
+        self.assertTrue(result.FPR.isna().all())
+        self.assertTrue(result.Status.str.contains('corrosion-specific').all())
+
     def test_each_crack_profile_receives_pressure_fpr_and_pof(self):
         summary, _ = parse_profile_workbook(synthetic_sample_workbook())
         cracks = summary_for_defect_type(summary, "Crack")

@@ -51,6 +51,7 @@ def analyze_crack_profiles(
     *,
     samples: int = 1000,
     seed: int = 7,
+    deterministic_only: bool = False,
 ) -> pd.DataFrame:
     """Calculate burst pressure, FPR, and POF for every valid crack profile.
 
@@ -99,6 +100,10 @@ def analyze_crack_profiles(
             "Monte Carlo samples": samples,
             "Status": "Not calculated",
         }
+        if deterministic_only and row.get('Defect type','Crack') != 'Crack':
+            record['Status'] = 'Not calculated: a corrosion-specific resistance model is required'
+            records.append(record)
+            continue
 
         missing_values = [
             label
@@ -132,12 +137,8 @@ def analyze_crack_profiles(
         )
         try:
             deterministic = corlas_failure_pressure(profile_inputs)
-            probability = simulate_probability_of_failure(
-                profile_inputs,
-                uncertainty,
-                samples=samples,
-                seed=seed + row_number,
-            )
+            probability = (None if deterministic_only else simulate_probability_of_failure(
+                profile_inputs,uncertainty,samples=samples,seed=seed + row_number))
         except ValueError as error:
             record["Status"] = str(error)
             records.append(record)
@@ -148,11 +149,19 @@ def analyze_crack_profiles(
             {
                 "Burst resistance pressure (psi)": burst_pressure,
                 "FPR": burst_pressure / profile_inputs.operating_pressure_psi,
-                "POF": float(probability["probability_of_failure"]),
-                "Monte Carlo failures": int(probability["failures"]),
+                "POF": float(probability["probability_of_failure"]) if probability else None,
+                "Monte Carlo failures": int(probability["failures"]) if probability else None,
                 "Status": "Calculated",
             }
         )
         records.append(record)
 
     return pd.DataFrame.from_records(records, columns=RESULT_COLUMNS)
+
+
+def analyze_deterministic_profiles(summary: pd.DataFrame,base_inputs: POFInputs) -> pd.DataFrame:
+    """Resistance/FPR only; never calls the Monte Carlo simulation."""
+    result = analyze_crack_profiles(summary,base_inputs,UncertaintyInputs(),deterministic_only=True)
+    result = result.drop(columns=['POF','Monte Carlo failures','Monte Carlo samples'])
+    result['Defect type'] = summary.get('Defect type',pd.Series('Crack',index=summary.index)).to_numpy()
+    return result.rename(columns={'Crack depth (mm)':'Defect depth (mm)','Crack length (mm)':'Defect length (mm)'})

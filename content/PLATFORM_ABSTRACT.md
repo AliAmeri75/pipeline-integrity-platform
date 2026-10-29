@@ -7,9 +7,10 @@ repair effectiveness, failure consequences, and lifecycle cost.
 
 Users can begin in **Data Exploration** to analyze crack or corrosion
 profiles, visualize their measured depths and dimensions, and prepare feature sizes
-and locations. The **Preliminary Analysis** subtopic estimates burst resistance
-pressure, failure pressure ratio (FPR), and probability of failure (POF) for each
-prepared crack profile. These results can then support **Maintenance Planning
+and locations. **Preliminary Analysis** brings together three tabs: **Deterministic
+Analysis** for crack resistance and FPR with selectable 3D defect views, **Risk &
+Reliability** for failure probabilities and mapped section risk, and **Consequence
+Assessment** for impact-radius and exposure screening. These results can then support **Maintenance Planning
 (Cracks/Corrosion)** for inspection and maintenance analysis.
 
 The platform connects three complementary approaches. Fixed scheduling compares
