@@ -50,6 +50,12 @@ pipeline_design = st.Page(
     icon=":material/architecture:",
     url_path="pipeline-design",
 )
+reliability_analysis = st.Page(
+    'reliability_analysis.py',
+    title='Reliability Analysis',
+    icon=':material/monitoring:',
+    url_path='reliability-analysis',
+)
 inspection = st.Page(
     "inspection_project.py",
     title="Static Multiple Inspection and Excavation Planning",
@@ -95,6 +101,7 @@ navigation = st.navigation(
         "Maintenance Planning (Cracks/Corrosion)": [
             data_integration,
             preliminary_analysis,
+            reliability_analysis,
             inspection,
             rl_planning,
             journal_two,

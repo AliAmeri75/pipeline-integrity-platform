@@ -41,6 +41,42 @@ planning workflows without modifying the source workbook. The preferred Static M
 included here, and its button opens the
 standalone simulation directly so users do not pass through two introductions.
 
+## Standalone Reliability Analysis
+
+Under **Maintenance Planning (Cracks/Corrosion) → Reliability Analysis**, calculate
+feature Pf and map critical sliding 1 km sections without running any scheduling
+study. The page includes a fictional 100 km Alberta route and crack CSV, route
+drawing/GeoJSON upload, CSV defect input, and prepared profiles from Data Exploration.
+Enter feature positions as km from the selected route's first point. Shared pipe
+geometry and material inputs must match the entered profiles.
+
+The crack-only CorLAS screening mode calculates Pf for the specified geometry and
+loading condition. It is a snapshot, not an annual probability: it includes no
+growth, initiation, repair, inspections, or cost optimization. Positive truncated
+normal sampling is used for crack depth/length, wall thickness, pressure and model
+factor. Other material inputs are fixed. Leakage means sampled depth ≥ sampled
+WT; burst applies to non-through-wall samples and compares pressure against
+CorLAS resistance. Shared WT, pressure and model-factor draws capture dependence
+between cracks in one joint; their failures are combined sample by sample.
+
+For corrosion, or annual probabilities from another model, use **Import
+crack/corrosion Pf** with `feature_id`, `defect_type` (Crack/Corrosion),
+`chainage_km`, `burst_pf`, and `leak_pf`. State the probability basis and period.
+No corrosion failure model is assumed. Imported feature events are assumed
+independent, including within a joint; use caution if your source model includes
+dependence. Do not mix periods or probability definitions in one upload.
+
+Windows advance one nominal joint and include a terminal window at the route end.
+The series combination is `1 - product(1 - joint Pf)` under joint independence.
+Boundary joints are conservatively included in full. Routes shorter than 1 km
+use the actual section without extrapolation. Red exceeds either selected limit;
+yellow is 50–100%; green is below 50%. Each pipe segment is coloured by its worst
+overlapping window. The default burst/leak limits of 0.001/0.01 are project
+screening settings, not a claim of CSA compliance. Unknown or unlisted defects are
+not included; green does not establish overall asset safety. Monte Carlo zeros
+are estimates, not proof of zero probability. Download tables carry the stated
+probability basis and assessment period. Changes to inputs invalidate saved maps.
+
 ## Run locally
 
 ```bash
