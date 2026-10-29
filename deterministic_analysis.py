@@ -1,10 +1,10 @@
 """Deterministic FPR workflow with selectable measured defect visualizations."""
 import hashlib
 import pandas as pd
-import plotly.graph_objects as go
 import streamlit as st
 from education.pof_model import POFInputs
 from deterministic_model import analyze_deterministic_profiles
+from deterministic_flags import flag_profiles,fpr_distance_figure,SEVERE_LABEL
 from profile_data import (ProfileFormatError,parse_profile_workbook,summary_for_defect_type,
                           synthetic_sample_workbook,summary_xlsx)
 from profile_visuals import render_linked_measured_profile,measured_profile_on_pipe_figure
@@ -84,6 +84,7 @@ def render_deterministic_analysis():
                 raise ValueError('Feature locations must be valid and not before the selected route start.')
             result['Distance from start (km)'] = distances/1000
             result['Section ID'] = (distances//1000).astype(int)+1
+            result = flag_profiles(result)
             st.session_state.deterministic_output = (signature,result)
         except (ValueError,KeyError,TypeError) as error:
             st.error(str(error))
@@ -92,23 +93,20 @@ def render_deterministic_analysis():
         st.info('Inputs changed. Run Deterministic Analysis again to update the FPR results.')
     result = saved[1] if saved and saved[0]==signature else None
     if result is not None:
+        result = flag_profiles(result)
         st.markdown('**FPR for each defect**')
         st.caption('FPR = unadjusted burst resistance pressure / operating pressure. '
                    'Click a row or a point below to open that measured defect in 3D. '
                    'An FPR above 1 alone does not establish code compliance or asset safety.')
+        st.caption('User-selected screening flags: FPR < 1.1 OR maximum depth > 50% of wall thickness. '
+                   'Red circles mark Severe → immediate action! These flags are not a code-compliance or repair assessment.')
         table_key = 'det_result_table_'+signature
         st.dataframe(result,hide_index=True,width='stretch',key=table_key,
             on_select=lambda:_select_table(table_key,result['Profile ID'].astype(str).tolist()),
             selection_mode='single-row',column_config={'FPR':st.column_config.NumberColumn(format='%.3f')})
         calculated = result[result.Status=='Calculated'].copy()
         if not calculated.empty:
-            figure = go.Figure(go.Scatter(x=calculated['Distance from start (km)'],y=calculated.FPR,
-                customdata=calculated[['Profile ID']].astype(str).to_numpy(),mode='markers',
-                marker=dict(size=10,color=calculated.FPR,colorscale='RdYlGn',showscale=True),
-                hovertemplate='Profile %{customdata[0]}<br>%{x:.3f} km<br>FPR %{y:.3f}<extra></extra>'))
-            figure.add_hline(y=1,line_dash='dash',annotation_text='FPR = 1')
-            figure.update_layout(template='plotly_white',xaxis_title='Distance from route start (km)',
-                yaxis_title='FPR',height=330,clickmode='event+select')
+            figure = fpr_distance_figure(result)
             chart_key = 'det_result_chart_'+signature
             st.plotly_chart(figure,width='stretch',key=chart_key,on_select=lambda:_select_chart(chart_key),selection_mode='points')
             sections = result.groupby('Section ID',as_index=False).agg(
@@ -138,6 +136,8 @@ def render_deterministic_analysis():
         chosen = result.loc[result['Profile ID'].astype(str)==selected].iloc[0]
         st.write(f'Profile {selected} · {defect_type} · '+
             (f'FPR {chosen.FPR:.3f}' if pd.notna(chosen.FPR) else str(chosen.Status)))
+        if chosen['Severe']:
+            st.error(SEVERE_LABEL+' '+chosen['Screening reason'])
     if defect_type=='Crack':
         st.subheader('Measured depth and CorLAS burst pressure')
         st.caption('Selected-profile preview using the current submitted material and pressure inputs. '

@@ -105,7 +105,7 @@ def synthetic_sample_workbook(seed: int = 7314) -> bytes:
             "wall_mm": 11.8,
             "x_count": 60,
             "y_count": 19,
-            "x_step": 2.0,
+            "x_step": 6.0,
             "y_step": 4.0,
             "peak_target": 53.0,
         },
