@@ -5,7 +5,7 @@ import pandas as pd
 from education.pof_model import POFInputs, UncertaintyInputs
 from profile_map import route_length_km
 from reliability_model import (demo_data,calculate_crack_reliability,
-    import_feature_reliability,sliding_sections)
+    import_feature_reliability,sliding_sections,consequence_template,fixed_section_risk)
 
 
 class ReliabilityTests(unittest.TestCase):
@@ -77,3 +77,38 @@ class ReliabilityTests(unittest.TestCase):
         self.assertEqual(len(windows),1)
         self.assertEqual(windows.burst_pf.iloc[0],1.)
         self.assertLess(windows.end_km.iloc[0],1.)
+
+    def test_fixed_sections_do_not_duplicate_joint_crossing_boundary(self):
+        self.features['chainage_km'] = [.999,1.001]
+        self.features['burst_pf'],self.features['leak_pf'] = [.1,.2],[.01,.02]
+        data,joints = import_feature_reliability(self.features,self.route,12.)
+        self.assertEqual(len(joints),1)
+        consequences = consequence_template(self.route)
+        consequences['burst_consequence'],consequences['leak_consequence'] = 1000.,100.
+        result = fixed_section_risk(self.route,data,consequences,.001,.01)
+        np.testing.assert_allclose(result.burst_pf,[.1,.2,0.])
+        np.testing.assert_allclose(result.total_risk,[101.,202.,0.])
+        self.assertEqual(result.feature_count.sum(),2)
+        self.assertLess(result.end_km.iloc[-1]-result.start_km.iloc[-1],1.)
+
+    def test_fixed_section_sampling_keeps_same_joint_dependence(self):
+        self.features['chainage_km'] = [.999,1.001]
+        self.features['depth_mm'] = [8.,1.]
+        data,_ = calculate_crack_reliability(self.features,self.route,12.,POFInputs(),
+            UncertaintyInputs(0,0,0,0,0),100)
+        c = consequence_template(self.route,sample=True)
+        result = fixed_section_risk(self.route,data,c,.001,.01)
+        self.assertEqual(result.leak_pf.iloc[0],1.)
+        self.assertEqual(result.leak_pf.iloc[1],0.)
+
+    def test_consequence_validation_and_endpoint_assignment(self):
+        self.features['chainage_km'] = [1.,route_length_km(self.route)]
+        self.features['burst_pf'],self.features['leak_pf'] = .1,.01
+        data,_ = import_feature_reliability(self.features,self.route,12.)
+        self.assertEqual(data.section_id.tolist(),[2,3])
+        c = consequence_template(self.route,sample=True)
+        for invalid in [c.iloc[:-1],pd.concat([c,c.iloc[:1]]),c.assign(burst_consequence=-1),
+                        c.assign(leak_consequence=np.nan),c.assign(start_km=50)]:
+            with self.assertRaises(ValueError):
+                fixed_section_risk(self.route,data,invalid,.001,.01)
+        self.assertEqual(fixed_section_risk(self.route,data,c.iloc[::-1],.001,.01).section_id.tolist(),[1,2,3])

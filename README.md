@@ -44,7 +44,7 @@ standalone simulation directly so users do not pass through two introductions.
 ## Standalone Reliability Analysis
 
 Under **Maintenance Planning (Cracks/Corrosion) → Reliability Analysis**, calculate
-feature Pf and map critical sliding 1 km sections without running any scheduling
+feature Pf and map fixed 1 km sections with consequences and risk, without running any scheduling
 study. The page includes a fictional 100 km Alberta route and crack CSV, route
 drawing/GeoJSON upload, CSV defect input, and prepared profiles from Data Exploration.
 Enter feature positions as km from the selected route's first point. Shared pipe
@@ -66,16 +66,39 @@ No corrosion failure model is assumed. Imported feature events are assumed
 independent, including within a joint; use caution if your source model includes
 dependence. Do not mix periods or probability definitions in one upload.
 
-Windows advance one nominal joint and include a terminal window at the route end.
-The series combination is `1 - product(1 - joint Pf)` under joint independence.
-Boundary joints are conservatively included in full. Routes shorter than 1 km
-use the actual section without extrapolation. Red exceeds either selected limit;
-yellow is 50–100%; green is below 50%. Each pipe segment is coloured by its worst
-overlapping window. The default burst/leak limits of 0.001/0.01 are project
-screening settings, not a claim of CSA compliance. Unknown or unlisted defects are
-not included; green does not establish overall asset safety. Monte Carlo zeros
-are estimates, not proof of zero probability. Download tables carry the stated
-probability basis and assessment period. Changes to inputs invalidate saved maps.
+Sections are fixed from the route start: [0,1), [1,2), and onward. The last
+section can be shorter; a feature at the route endpoint belongs to the final
+section. Each feature belongs to exactly one section by chainage. When a joint
+crosses a section boundary, only that section's feature failure samples contribute
+to its Pf. This retains within-joint dependence without duplicating a defect.
+Joint events within each section use the independent series combination
+`1 - product(1 - joint Pf)`.
+
+Download a route-specific consequence CSV template or upload CSV/Excel containing
+`section_id`, `burst_consequence`, `leak_consequence`; optional `start_km`/`end_km`
+must match the current route. Every section must have exactly one row. Values must
+be finite and nonnegative; zero explicitly means no consequence in the selected
+metric, while missing values are rejected. Enter conditional section-level loss
+if a mode occurs, not probability-weighted cost. Both modes must share a common
+unit (e.g. CAD) and a consistent valuation basis. Sample costs are invented for
+demonstration and are not location-specific estimates.
+
+`burst_risk = burst_pf * burst_consequence`, likewise for leakage, and total risk
+is their sum. Consequences must be additive without double counting common losses.
+Risk is expected loss over the stated probability basis: CAD/year only for
+imported annual Pf, otherwise CAD per stated assessment. No annual claim is made
+for the snapshot crack model.
+
+Three step plots display POF, consequence and risk against route distance.
+The map selector switches POF/consequence/risk and burst/leakage (or total risk).
+A numeric green-yellow-red legend scales from zero to the selected Pf limit for
+POF, and to the displayed maximum for consequences/risk. The latter are relative
+colours, not regulatory risk categories. The separate `pof_category`
+column uses the selected burst/leakage screening limits. Default limits of
+0.001/0.01 do not claim CSA compliance. Unknown defects are not included; green
+does not establish overall safety. Monte Carlo zeros are not proof of zero Pf.
+Downloads carry units, probability basis and period. Input changes invalidate
+saved results; display switches retain them without rerunning Monte Carlo.
 
 ## Run locally
 

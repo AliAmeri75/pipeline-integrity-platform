@@ -43,6 +43,7 @@ def validate_features(features, route, joint_length_m):
     data['chainage_km'] = chainage
     count = math.ceil(length*1000/joint_length_m)
     data['joint_number'] = np.minimum(np.floor(chainage*1000/joint_length_m).astype(int)+1,count)
+    data['section_id'] = np.minimum(np.floor(chainage).astype(int)+1,math.ceil(length))
     return data
 
 
@@ -80,11 +81,13 @@ def calculate_crack_reliability(features, route, joint_length_m, inputs, uncerta
     data['burst_failures'], data['leak_failures'] = 0, 0
     data['mc_samples'] = samples
     joints = []
+    section_joints = []
     for number, group in data.groupby('joint_number', sort=True):
         walls = positive(inputs.wall_thickness_mm, uncertainty.wall_thickness_mm)
         pressures = positive(inputs.operating_pressure_psi, uncertainty.operating_pressure_psi)
         factors = positive(inputs.model_factor, uncertainty.model_factor)
         joint_burst, joint_leak = np.zeros(samples,dtype=bool), np.zeros(samples,dtype=bool)
+        section_masks = {}
         for index, row in group.iterrows():
             depths = positive(row.depth_mm, uncertainty.flaw_depth_mm)
             lengths = positive(row.length_mm, uncertainty.flaw_length_mm)
@@ -103,7 +106,15 @@ def calculate_crack_reliability(features, route, joint_length_m, inputs, uncerta
             data.loc[index,['burst_failures','leak_failures']] = [burst.sum(),leak.sum()]
             joint_burst |= burst
             joint_leak |= leak
+            masks = section_masks.setdefault(int(row.section_id),
+                [np.zeros(samples,dtype=bool),np.zeros(samples,dtype=bool)])
+            masks[0] |= burst
+            masks[1] |= leak
         joints.append(dict(joint_number=int(number),burst_pf=joint_burst.mean(),leak_pf=joint_leak.mean()))
+        for section_id,(burst_mask,leak_mask) in section_masks.items():
+            section_joints.append(dict(section_id=section_id,joint_number=int(number),
+                burst_pf=float(burst_mask.mean()),leak_pf=float(leak_mask.mean())))
+    data.attrs['section_joint_pfs'] = section_joints
     return data, pd.DataFrame(joints)
 
 
@@ -120,7 +131,71 @@ def import_feature_reliability(features, route, joint_length_m):
     for number, group in data.groupby('joint_number',sort=True):
         records.append(dict(joint_number=int(number),
             burst_pf=1-np.prod(1-group.burst_pf),leak_pf=1-np.prod(1-group.leak_pf)))
+    data.attrs['section_joint_pfs'] = [dict(section_id=int(section),joint_number=int(joint),
+        burst_pf=1-np.prod(1-group.burst_pf),leak_pf=1-np.prod(1-group.leak_pf))
+        for (section,joint),group in data.groupby(['section_id','joint_number'])]
     return data,pd.DataFrame(records)
+
+
+def consequence_template(route, sample=False):
+    """One row per non-overlapping kilometre; the last section can be shorter."""
+    length = route_length_km(route)
+    if length <= 0:
+        raise ValueError('Route must have positive length.')
+    starts = np.arange(math.ceil(length),dtype=float)
+    data = pd.DataFrame(dict(section_id=np.arange(1,len(starts)+1),start_km=starts,
+        end_km=np.minimum(starts+1,length)))
+    data['burst_consequence'] = np.nan
+    data['leak_consequence'] = np.nan
+    if sample:
+        # Illustrative conditional costs only, not estimates for actual locations.
+        data['burst_consequence'] = 1000000.*(1+np.mod(data.section_id,5))
+        data['leak_consequence'] = 100000.*(1+np.mod(data.section_id,7))
+    return data
+
+
+def fixed_section_risk(route, features, consequences, burst_limit, leak_limit):
+    """Fixed sections [0,1), [1,2), ...; feature chainage controls membership.
+
+    A crack is counted once, even if its physical joint crosses a section edge.
+    Section joint Pf from the Monte Carlo engine retains within-joint dependence.
+    Mode-specific consequences are conditional losses for a section-level event.
+    Total expected loss is an additive mode sum, not an any-failure probability.
+    """
+    if not 0 < burst_limit <= 1 or not 0 < leak_limit <= 1:
+        raise ValueError('Pf limits must lie in (0, 1].')
+    result = consequence_template(route)
+    required = {'section_id','burst_consequence','leak_consequence'}
+    if not required.issubset(consequences.columns):
+        raise ValueError('Consequence data require section_id, burst_consequence and leak_consequence.')
+    provided = consequences.copy()
+    for field in required:
+        provided[field] = pd.to_numeric(provided[field],errors='coerce')
+        if not np.isfinite(provided[field]).all():
+            raise ValueError('Consequences and section IDs must be finite numeric values; UNKNOWN cannot be treated as zero.')
+    if provided.section_id.duplicated().any() or set(provided.section_id) != set(result.section_id):
+        raise ValueError('Provide exactly one consequence row for every section_id in the route template.')
+    provided = provided.set_index('section_id').loc[result.section_id].reset_index()
+    for field in ('start_km','end_km'):
+        if field in provided and not np.allclose(pd.to_numeric(provided[field],errors='coerce'),result[field],atol=1e-7,rtol=0):
+            raise ValueError('Consequence start/end distances must match the current route template.')
+    for field in ('burst_consequence','leak_consequence'):
+        if (provided[field]<0).any():
+            raise ValueError('Consequences must be nonnegative.')
+        result[field] = provided[field].to_numpy()
+    records = features.attrs.get('section_joint_pfs')
+    if records is None:
+        raise ValueError('Calculate or import feature probabilities again to prepare fixed-section results.')
+    section_joints = pd.DataFrame(records)
+    for mode in ('burst','leak'):
+        grouped = section_joints.groupby('section_id')[f'{mode}_pf'].apply(lambda p: 1-np.prod(1-p))
+        result[f'{mode}_pf'] = result.section_id.map(grouped).fillna(0.)
+        result[f'{mode}_risk'] = result[f'{mode}_pf']*result[f'{mode}_consequence']
+    result['total_risk'] = result.burst_risk+result.leak_risk
+    result['feature_count'] = result.section_id.map(features.groupby('section_id').size()).fillna(0).astype(int)
+    result['limit_ratio'] = np.maximum(result.burst_pf/burst_limit,result.leak_pf/leak_limit)
+    result['pof_category'] = np.where(result.limit_ratio>1,'High',np.where(result.limit_ratio>=.5,'Medium','Low'))
+    return result
 
 
 def sliding_sections(route, features, joint_pfs, joint_length_m, burst_limit, leak_limit):

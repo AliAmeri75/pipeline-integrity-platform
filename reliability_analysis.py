@@ -1,11 +1,14 @@
-"""Standalone reliability page: feature Pf and sliding-section map."""
+"""Standalone fixed-section reliability, consequence and risk profiles."""
 import hashlib
 import html
 import io
 import json
 import folium
+import numpy as np
 import pandas as pd
+import plotly.graph_objects as go
 import streamlit as st
+from branca.colormap import LinearColormap
 from folium.plugins import Draw
 from streamlit_folium import st_folium
 from education.pof_model import POFInputs, UncertaintyInputs
@@ -13,37 +16,58 @@ from platform_ui import render_project_hero
 from profile_map import route_length_km, point_at_chainage, latest_route_from_drawings
 from profile_data import parse_profile_workbook
 from reliability_model import (demo_data, calculate_crack_reliability,
-                               import_feature_reliability, sliding_sections)
+                               import_feature_reliability, consequence_template, fixed_section_risk)
 
 
-def result_map(route, features, spatial):
-    colors = {'High':'#dc2626','Medium':'#eab308','Low':'#16a34a'}
+def result_map(route, features, sections, column, label, pof_limit=None):
     m = folium.Map(location=route[0],tiles='OpenStreetMap')
     folium.TileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
                      attr='Esri World Imagery',name='Satellite').add_to(m)
     vertices = [route_length_km(route[:i+1]) for i in range(1,len(route))]
-    for _,group in spatial.groupby((spatial.category != spatial.category.shift()).cumsum()):
-        start,end = group.start_km.iloc[0],group.end_km.iloc[-1]
+    maximum = float(sections[column].max())
+    scale = LinearColormap(['#16a34a','#eab308','#dc2626'],vmin=0,
+                          vmax=pof_limit if pof_limit is not None else maximum if maximum>0 else 1,
+                          caption=label+(' — selected Pf limit' if pof_limit is not None else ' — relative colour scale'))
+    scale.add_to(m)
+    for row in sections.itertuples():
+        start,end = row.start_km,row.end_km
         points = [start]+[d for d in vertices if start<d<end]+[end]
-        category = group.category.iloc[0]
+        value = float(getattr(row,column))
         folium.PolyLine([point_at_chainage(route,float(d)) for d in points],weight=7,
-            color=colors[category],tooltip=f'{category}: {start:.3f}–{end:.3f} km (worst enclosing window)').add_to(m)
+            color=scale(value),tooltip=f'Section {row.section_id}: {start:.3f}–{end:.3f} km; {label}: {value:.4g}',
+            popup=f'Section {row.section_id}<br>{start:.3f}–{end:.3f} km<br>'
+                  f'Burst Pf: {row.burst_pf:.4g}<br>Leakage Pf: {row.leak_pf:.4g}<br>'
+                  f'Burst consequence: {row.burst_consequence:,.2f}<br>Leakage consequence: {row.leak_consequence:,.2f}<br>'
+                  f'Total expected loss: {row.total_risk:,.4g}').add_to(m)
     for row in features.itertuples():
-        joint = spatial.iloc[int(row.joint_number)-1]
+        section = sections.iloc[int(row.section_id)-1]
         folium.CircleMarker(point_at_chainage(route,row.chainage_km),radius=6,
-            color=colors[joint.category],fill=True,fill_opacity=.9,
+            color=scale(float(section[column])),fill=True,fill_opacity=.9,
             tooltip=f'{html.escape(str(row.feature_id))}: {row.defect_type}',
             popup=f'{html.escape(str(row.feature_id))}<br>Joint {row.joint_number}<br>'
                   f'Feature burst Pf: {row.burst_pf:.3g}<br>Feature leakage Pf: {row.leak_pf:.3g}<br>'
-                  f'Critical window: {joint.critical_start_km:.3f}–{joint.critical_end_km:.3f} km<br>'
-                  f'Window burst Pf: {joint.window_burst_pf:.3g}<br>Window leakage Pf: {joint.window_leak_pf:.3g}').add_to(m)
+                  f'Section {row.section_id}: {section.start_km:.3f}–{section.end_km:.3f} km<br>'
+                  f'{label}: {float(section[column]):.4g}').add_to(m)
     folium.LayerControl().add_to(m)
     m.fit_bounds(route)
     return m
 
 
+def profile_figure(sections, columns, title, y_label):
+    figure = go.Figure()
+    x = sections.start_km.tolist()+[float(sections.end_km.iloc[-1])]
+    for column,label in columns:
+        y = sections[column].tolist()+[float(sections[column].iloc[-1])]
+        figure.add_trace(go.Scatter(x=x,y=y,name=label,mode='lines',line_shape='hv',
+            hovertemplate='%{x:.3f} km<br>%{y:.5g}<extra>'+label+'</extra>'))
+    figure.update_layout(title=title,xaxis_title='Distance from route start (km)',
+        yaxis_title=y_label,template='plotly_white',height=320,hovermode='x unified',
+        margin=dict(l=50,r=20,t=50,b=45),legend=dict(orientation='h'))
+    return figure
+
+
 render_project_hero('Maintenance Planning (Cracks/Corrosion)','Reliability Analysis',
-    'Calculate feature failure probabilities and locate critical sliding 1 km sections—without inspection or maintenance planning.')
+    'Map probability of failure, consequences and risk in fixed 1 km sections—without inspection or maintenance planning.')
 st.caption('Crack calculation: CorLAS screening at the entered assessment condition. '
            'Corrosion: upload probabilities from your selected corrosion model. '
            'No growth, crack initiation, inspections, repairs or cost optimization are applied.')
@@ -139,6 +163,31 @@ joint_length = st.number_input('Nominal joint length (m)',1.,100.,12.,1.)
 c1,c2 = st.columns(2)
 burst_limit = c1.number_input('High likelihood: burst Pf above',min_value=1e-10,max_value=1.,value=.001,format='%.6g')
 leak_limit = c2.number_input('High likelihood: leakage Pf above',min_value=1e-10,max_value=1.,value=.01,format='%.6g')
+st.subheader('Consequences for each kilometre')
+st.caption('Section 1 = 0–1 km, section 2 = 1–2 km, and so on. The final section may be shorter. '
+           'Enter the conditional loss if a burst or leakage event occurs in each section, not an already probability-weighted loss. '
+           'Use one common unit for both modes, such as CAD; environmental or life-safety effects require your own consistent valuation.')
+unit = st.text_input('Common consequence unit',value='CAD')
+consequence_source = st.radio('Consequence data',['Illustrative sample','Upload CSV or Excel','Enter section values'],horizontal=True)
+template = consequence_template(route)
+st.download_button('Download consequence template CSV',template.to_csv(index=False),'section_consequences_template.csv','text/csv')
+consequences = consequence_template(route,sample=consequence_source=='Illustrative sample')
+if consequence_source=='Illustrative sample':
+    st.caption('Sample costs are invented to demonstrate spatial variation. They are not estimates for these Alberta locations.')
+elif consequence_source=='Upload CSV or Excel':
+    consequence_upload = st.file_uploader('Section consequences (section_id, burst_consequence, leak_consequence)',type=['csv','xlsx'])
+    if consequence_upload is not None:
+        try:
+            consequences = (pd.read_csv(io.BytesIO(consequence_upload.getvalue())) if consequence_upload.name.lower().endswith('.csv')
+                            else pd.read_excel(io.BytesIO(consequence_upload.getvalue())))
+        except (ValueError,TypeError,OSError) as error:
+            st.error(str(error))
+if consequence_source=='Enter section values':
+    consequences = st.data_editor(consequences,hide_index=True,width='stretch',
+        disabled=['section_id','start_km','end_km'],key=f'section_consequences_{hashlib.sha256(repr(route).encode()).hexdigest()}')
+else:
+    with st.expander('Review consequence values'):
+        st.dataframe(consequences,hide_index=True,width='stretch')
 base,uncertainty,samples,seed = POFInputs(),UncertaintyInputs(),1000,7
 if mode == 'Calculate crack Pf':
     with st.expander('Pipe, pressure, material and uncertainty',expanded=True):
@@ -166,37 +215,63 @@ if mode == 'Calculate crack Pf':
                    'Other material properties are fixed. WT, pressure and model factor are shared within a joint. '
                    'Burst is assessed for non-through-wall samples; depth ≥ WT is leakage.')
 signature = hashlib.sha256(repr((route,features.to_csv(index=False),mode,basis,period,joint_length,
-                               burst_limit,leak_limit,base,uncertainty,samples,seed)).encode()).hexdigest()
+                               burst_limit,leak_limit,base,uncertainty,samples,seed,
+                               consequences.to_csv(index=False),unit)).encode()).hexdigest()
 if st.button('Run Reliability Analysis',type='primary'):
     try:
         if basis.startswith('UNKNOWN') or (mode == 'Import crack/corrosion Pf' and not period.strip()):
             raise ValueError('Specify the imported probability basis and assessment period/condition.')
-        with st.spinner('Calculating feature probabilities and sliding 1 km sections…'):
+        if not unit.strip():
+            raise ValueError('Specify a common consequence unit.')
+        # Reject incomplete consequence values before Monte Carlo.
+        required = {'section_id','burst_consequence','leak_consequence'}
+        if not required.issubset(consequences.columns) or consequences[list(required)].isna().any().any():
+            raise ValueError('Fill both consequence values for every section. Missing values are UNKNOWN, not zero.')
+        with st.spinner('Calculating failure probabilities and risk in fixed 1 km sections…'):
             if mode == 'Calculate crack Pf':
                 assessed,joints = calculate_crack_reliability(features,route,joint_length,base,uncertainty,int(samples),int(seed))
             else:
                 assessed,joints = import_feature_reliability(features,route,joint_length)
-            windows,spatial = sliding_sections(route,assessed,joints,joint_length,burst_limit,leak_limit)
-            st.session_state.reliability_output = (signature,assessed,joints,windows,spatial)
+            sections = fixed_section_risk(route,assessed,consequences,burst_limit,leak_limit)
+            st.session_state.reliability_output = (signature,assessed,joints,sections)
     except (ValueError,KeyError,TypeError) as error:
         st.error(str(error))
 saved = st.session_state.get('reliability_output')
 if saved and saved[0] != signature:
     st.info('Inputs changed. Run Reliability Analysis again to update the map.')
 elif saved:
-    _,assessed,joints,windows,spatial = saved
-    st.subheader('Reliability map and critical sections')
-    st.caption(f'Probability basis: {basis}. {period}. Red: above either limit; yellow: 50–100%; green: below 50%. '
-               'Colours show the worst enclosing 1 km window. Windows advance one joint; boundary joints are included in full conservatively. '
-               'Short routes use their actual length. These are failure-likelihood categories, without consequences. '
-               'Unlisted defects and failure mechanisms are not modeled. Zero observed Monte Carlo failures do not prove zero Pf.')
-    st_folium(result_map(route,assessed,spatial),height=500,width=1100,returned_objects=[],key=f'reliability_output_{signature}')
+    _,assessed,joints,sections = saved
+    risk_unit = unit+'/year' if basis=='Annual Pf' else unit+' per stated assessment'
+    st.subheader('POF, consequence and risk profiles')
+    st.caption(f'Probability basis: {basis}. {period}. '
+               'Risk = burst Pf × burst consequence + leakage Pf × leakage consequence, in '+risk_unit+'. '
+               'Mode consequences must be additive without double-counting shared losses. '
+               'Fixed sections do not overlap; each feature belongs to one section by its location. '
+               'Unlisted defects are not modeled. Zero Monte Carlo failures do not prove zero Pf.')
+    st.plotly_chart(profile_figure(sections,[('burst_pf','Burst'),('leak_pf','Leakage')],
+        'POF versus distance','Probability of failure'),width='stretch')
+    st.plotly_chart(profile_figure(sections,[('burst_consequence','Burst'),('leak_consequence','Leakage')],
+        'Consequence versus distance','Conditional consequence ('+unit+')'),width='stretch')
+    st.plotly_chart(profile_figure(sections,[('burst_risk','Burst'),('leak_risk','Leakage'),('total_risk','Total')],
+        'Risk versus distance','Expected loss ('+risk_unit+')'),width='stretch')
+    view = st.radio('Map view',['POF','Consequence','Risk'],horizontal=True)
+    mode_options = ['Burst','Leakage','Total'] if view=='Risk' else ['Burst','Leakage']
+    map_mode = st.selectbox('Map failure mode',mode_options,index=2 if view=='Risk' else 0)
+    prefix = {'Burst':'burst','Leakage':'leak','Total':'total'}[map_mode]
+    suffix = {'POF':'pf','Consequence':'consequence','Risk':'risk'}[view]
+    column = prefix+'_'+suffix
+    label = map_mode+' '+view+(' ('+unit+')' if view=='Consequence' else ' ('+risk_unit+')' if view=='Risk' else '')
+    st.caption('POF colours run from zero (green) to the selected Pf limit (red); values above it remain red. '
+               'Consequence and risk use a relative green–yellow–red scale, not regulatory risk categories. '
+               'Click a section or a defect for details. The table retains POF-limit categories separately.')
+    selected_limit = (burst_limit if map_mode=='Burst' else leak_limit) if view=='POF' else None
+    st_folium(result_map(route,assessed,sections,column,label,selected_limit),height=500,width=1100,returned_objects=[],key=f'reliability_output_{signature}_{column}')
     st.markdown('**Each crack/corrosion feature**')
     st.dataframe(assessed,hide_index=True,width='stretch')
-    st.markdown('**Critical sliding 1 km sections**')
-    st.dataframe(windows.sort_values('limit_ratio',ascending=False),hide_index=True,width='stretch')
+    st.markdown('**Fixed 1 km sections — highest expected loss first**')
+    st.dataframe(sections.sort_values('total_risk',ascending=False),hide_index=True,width='stretch')
     for label,table,name in [('Feature results',assessed,'feature_reliability.csv'),
                              ('Joint results',joints,'joint_reliability.csv'),
-                             ('Sliding sections',windows,'sliding_1km_reliability.csv')]:
-        export = table.assign(probability_basis=basis,assessment_period=period)
+                             ('Section risk results',sections,'fixed_1km_risk.csv')]:
+        export = table.assign(probability_basis=basis,assessment_period=period,consequence_unit=unit,risk_unit=risk_unit)
         st.download_button(f'Download {label}',export.to_csv(index=False),name,'text/csv')
