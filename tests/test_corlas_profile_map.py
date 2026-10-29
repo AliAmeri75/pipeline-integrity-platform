@@ -1,4 +1,5 @@
 import unittest
+from pathlib import Path
 from dataclasses import replace
 import numpy as np
 import pandas as pd
@@ -7,6 +8,15 @@ from corlas_profile_map import evaluate_profile_grid,minimum_grid_result,corlas_
 
 
 class CorlasProfileMapTests(unittest.TestCase):
+    def test_heatmaps_visible_before_pressing_run(self):
+        from streamlit.testing.v1 import AppTest
+        app=AppTest.from_file(str(Path(__file__).resolve().parents[1]/'preliminary_analysis.py'),default_timeout=60).run()
+        self.assertEqual(len(app.exception),0)
+        self.assertIn('Measured depth and CorLAS burst pressure',[s.value for s in app.subheader])
+        metrics=[m for m in app.metric if m.label.startswith('Minimum calculated FPR')]
+        self.assertEqual(len(metrics),1)
+        self.assertNotEqual(metrics[0].value,'Unavailable')
+
     def setUp(self):
         self.profile=pd.DataFrame({'Axial offset (mm)':[0.,10.,0.,10.],
             'Circumferential offset (mm)':[0.,0.,5.,5.],'Depth (%WT)':[10.,20.,30.,40.]})

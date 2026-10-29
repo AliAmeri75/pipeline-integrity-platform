@@ -57,7 +57,7 @@ available. The lowest calculated FPR is summarized for each represented nominal
 No route endpoint is inferred from the profile workbook. Unsupported corrosion
 resistance remains unavailable; corrosion geometry can still be visualized.
 
-After running deterministic analysis, the selected crack profile also shows a
+The selected crack profile immediately shows a
 measured-depth heatmap beside a CorLAS burst-pressure heatmap on the same axial
 and circumferential coordinates. Each valid measured depth is evaluated with
 the **full profile length held fixed**, its pipe geometry and the entered material
@@ -69,6 +69,8 @@ number of evaluated cells. Crosses locate the minimum on both maps. Selecting
 another profile updates the cards and heatmaps; results are cached by profile
 and inputs. Point CSV downloads include measured depth, coordinates, resistance,
 FPR, profile length, pressure and calculation status.
+The preview uses default or submitted form inputs. Press Run Deterministic Analysis
+to apply form edits and calculate the complete profile and section result tables.
 
 Zero depths are not treated as cracks. Missing/negative depths, through-wall
 depths and failed model evaluations receive no fabricated resistance or FPR;
