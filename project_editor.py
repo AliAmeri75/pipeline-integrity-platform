@@ -19,7 +19,7 @@ def get_project():
 def render_project_editor(summary,profiles,content,is_sample):
     """Return edited draft; publication is explicit, after route review."""
     current=get_project()
-    token='shared-sample-v1' if is_sample else hashlib.sha256(content).hexdigest()
+    token='shared-sample-v2-uniform-pipe' if is_sample else hashlib.sha256(content).hexdigest()
     if st.session_state.get('project_source_token')!=token:
         if is_sample:
             draft=sample_project()
@@ -43,7 +43,8 @@ def render_project_editor(summary,profiles,content,is_sample):
     tabs=st.tabs(['Defect register','Pipe segments & consequences','Uncertainties'])
     with tabs[0]:
         st.caption('Edit defect chainage and type; measured profiles and dimensions remain unchanged. '
-            'The sample relocates the same three profiles to 0.5, 4.5 and 8.5 km on a fictional 10 km route.')
+            'The sample places three profiles at 0.5, 4.5 and 8.5 km on one fictional 10 km pipe: '
+            '914.4 mm outside diameter and 11.8 mm wall thickness throughout. Defect sizes vary, not pipe geometry.')
         draft['summary']=st.data_editor(draft['summary'],hide_index=True,width='stretch',
             disabled=[c for c in draft['summary'].columns if c not in ['Feature location (m)','Defect type']],
             key='project_defects_'+token,column_config={

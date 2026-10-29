@@ -71,8 +71,9 @@ planning applications are not silently synchronized across deployments.
 The fictional bent route near Edmonton is exactly 10 km, with the same measured
 synthetic shapes SYN-001, SYN-002 and SYN-003 at 0.5, 4.5 and 8.5 km. The source
 sample workbook uses these same chainages. Initial property segments are
-non-overlapping 1 km intervals. Geometry at each defect is seeded from its
-profile metadata. Other segment properties, uncertainty settings and conditional
+non-overlapping 1 km intervals. All sample segments and profiles use the same
+914.4 mm (36 in) outside diameter and 11.8 mm wall thickness. Custom assets
+can still use different segment properties. Other properties, uncertainty settings and conditional
 losses are illustrative inputs, not validated asset or geographical information.
 SYN-003 retains its 360 mm length and 65% inspection-WT maximum depth; its
 default FPR is approximately 1.079.

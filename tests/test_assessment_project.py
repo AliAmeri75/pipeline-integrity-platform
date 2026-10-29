@@ -34,6 +34,16 @@ class SharedProjectTests(unittest.TestCase):
         self.assertEqual(result['Segment ID'].tolist(),[1,5,9])
         self.assertTrue(result.Severe.iloc[2])
 
+    def test_sample_uses_one_pipe_geometry_over_whole_route(self):
+        p=self.project
+        self.assertEqual(p['segments'].wall_thickness_mm.unique().tolist(),[11.8])
+        self.assertEqual(p['segments'].diameter_in.unique().tolist(),[36.])
+        self.assertTrue((p['summary']['Wall thickness (mm)']==11.8).all())
+        self.assertTrue((p['summary']['Outside diameter (mm)']==914.4).all())
+        result=deterministic_project(p)
+        self.assertTrue((result['Wall thickness (mm)']==11.8).all())
+        self.assertTrue((result['Outside diameter (mm)']==914.4).all())
+
     def test_segment_pressure_only_changes_its_own_fpr(self):
         before=deterministic_project(self.project)
         self.project['segments'].loc[self.project['segments'].section_id==5,'operating_pressure_psi']*=2
