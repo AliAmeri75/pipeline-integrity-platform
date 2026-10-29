@@ -68,7 +68,10 @@ def render_shared_reliability(*,embedded=False):
         figure=profile_figure(sections,columns,title,ylabel)
         if title=='POF versus distance':
             figure=annotate_pof_figure(figure,sections,burst_limit,leak_limit)
-        st.plotly_chart(figure,width='stretch')
+        st.plotly_chart(figure,width='stretch',theme=None)
+        if title=='POF versus distance':
+            st.caption('The POF vertical axis is logarithmic. Zero estimates are omitted from this plot (gaps), '
+                'not replaced with small positive values. All original values remain in the tables and downloads.')
     if sections[['burst_consequence','leak_consequence']].isna().any().any():
         st.warning('Some consequences are UNKNOWN. Their risk values remain unavailable—not zero. Complete them in Data Exploration.')
     st.caption('Risk = burst Pf × conditional burst loss + leakage Pf × conditional leakage loss. '

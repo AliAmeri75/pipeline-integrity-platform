@@ -6,6 +6,7 @@ import plotly.graph_objects as go
 from branca.colormap import LinearColormap
 from profile_map import route_length_km, point_at_chainage
 from map_presentation import readable_map_overlays
+from academic_figures import academic_style,logarithmic_y
 
 
 def result_map(route, features, sections, column, label, pof_limit=None):
@@ -66,14 +67,29 @@ def result_map(route, features, sections, column, label, pof_limit=None):
 
 def profile_figure(sections, columns, title, y_label):
     figure = go.Figure()
+    is_pof=all(column.endswith('_pf') for column,_ in columns)
     x = sections.start_km.tolist()+[float(sections.end_km.iloc[-1])]
     for column,label in columns:
         y = sections[column].tolist()+[float(sections[column].iloc[-1])]
-        figure.add_trace(go.Scatter(x=x,y=y,name=label,mode='lines',line_shape='hv',
+        plot_x=x
+        if is_pof:
+            # Draw complete positive section intervals, separated by gaps.
+            # A solitary positive step must not disappear between zero sections.
+            plot_x,y=[],[]
+            for row in sections.itertuples():
+                value=float(getattr(row,column))
+                if np.isfinite(value) and value>0:
+                    plot_x.extend([row.start_km,row.end_km,None])
+                    y.extend([value,value,None])
+        figure.add_trace(go.Scatter(x=plot_x,y=y,name=label,mode='lines',line_shape='hv',
             hovertemplate='%{x:.3f} km<br>%{y:.5g}<extra>'+label+'</extra>'))
     figure.update_layout(title=title,xaxis_title='Distance from route start (km)',
         yaxis_title=y_label,template='plotly_white',height=320,hovermode='x unified',
         margin=dict(l=50,r=20,t=50,b=45),legend=dict(orientation='h'))
+    academic_style(figure)
+    if is_pof:
+        figure.update_yaxes(title_text=y_label+' (log scale)')
+        logarithmic_y(figure,probability=True)
     return figure
 
 

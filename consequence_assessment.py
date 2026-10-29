@@ -7,6 +7,7 @@ import plotly.graph_objects as go
 import streamlit as st
 from streamlit_folium import st_folium
 from map_presentation import readable_map_overlays
+from academic_figures import academic_style
 from profile_map import point_at_chainage,route_length_km
 from reliability_model import consequence_template
 from consequence_model import (HazardScenario,PIR,THERMAL,RADIUS,PIR_SOURCE,THERMAL_SOURCE,
@@ -127,7 +128,7 @@ def render_consequence_assessment(route,segment_table=None):
                 name=label,mode='lines+markers'))
         figure.update_layout(template='plotly_white',xaxis_title='Section midpoint (km)',
             yaxis_title='Expected people potentially exposed, conditional on mode failure',height=320)
-        st.plotly_chart(figure,width='stretch')
+        st.plotly_chart(academic_style(figure),width='stretch',theme=None)
         section_id = st.selectbox('Section to inspect on map',results.section_id.astype(int).tolist())
         row = results.loc[results.section_id==section_id].iloc[0]
         centre = point_at_chainage(route,float(row.event_chainage_km))

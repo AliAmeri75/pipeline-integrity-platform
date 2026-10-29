@@ -152,6 +152,13 @@ feature does. Tables and CSVs include status, reason and both selected limits.
 Changing a screening limit reclassifies saved probabilities without another
 simulation. These are user-configured review flags, not regulatory repair orders.
 
+Assessment profile charts use a white paper/plot background, Times New Roman
+(Times/serif fallback), black framed axes and light gridlines. FPR and POF use
+logarithmic vertical axes; consequences and risk remain linear. Zero POF
+estimates are omitted from the log plot, leaving gaps; tables and exports retain
+the original zero values. No small positive surrogate is inserted. Threshold
+labels have white backgrounds and additional plot margins retain action labels.
+
 ### Consequence Assessment workspace
 
 Open **Preliminary Analysis → Consequence Assessment** after saving the shared

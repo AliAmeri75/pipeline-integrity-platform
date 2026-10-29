@@ -1,6 +1,7 @@
 """User-selected POF screening flags, independent of consequence/risk colours."""
 import numpy as np
 import pandas as pd
+from academic_figures import academic_style,logarithmic_y
 
 ACTION_LABEL='Immediate action!'
 
@@ -31,7 +32,8 @@ def annotate_pof_figure(figure,sections,burst_limit,leak_limit):
     flagged=flag_probabilities(sections,burst_limit,leak_limit)
     for mode,limit,color in [('burst',burst_limit,'#dc2626'),('leak',leak_limit,'#b45309')]:
         figure.add_hline(y=limit,line_dash='dash',line_color=color,
-            annotation_text=mode.title()+f' limit = {limit:.4g}')
+            annotation_text=mode.title()+f' limit = {limit:.4g}',
+            annotation_position='top right' if mode=='burst' else 'bottom right')
         severe=flagged[flagged[mode+'_exceeds_limit']]
         if severe.empty:
             continue
@@ -42,5 +44,4 @@ def annotate_pof_figure(figure,sections,burst_limit,leak_limit):
             textfont=dict(color=color),customdata=severe[['section_id','start_km','end_km','screening_reason']].to_numpy(),
             hovertemplate='Segment %{customdata[0]} (%{customdata[1]:.3f}–%{customdata[2]:.3f} km)'
                 '<br>POF %{y:.5g}<br>%{customdata[3]}<extra>'+ACTION_LABEL+'</extra>'))
-    figure.update_layout(margin=dict(t=65,b=80))
-    return figure
+    return logarithmic_y(academic_style(figure),thresholds=(burst_limit,leak_limit),probability=True)

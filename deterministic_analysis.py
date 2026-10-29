@@ -67,7 +67,7 @@ def render_deterministic_analysis():
         if not calculated.empty:
             figure = fpr_distance_figure(result)
             chart_key = 'det_result_chart_'+signature
-            st.plotly_chart(figure,width='stretch',key=chart_key,on_select=lambda:_select_chart(chart_key),selection_mode='points')
+            st.plotly_chart(figure,width='stretch',theme=None,key=chart_key,on_select=lambda:_select_chart(chart_key),selection_mode='points')
             sections = result.groupby('Segment ID',as_index=False).agg(
                 **{'Lowest calculated FPR':('FPR','min'),'Recorded defects':('Profile ID','size'),
                    'Calculated defects':('FPR','count')})

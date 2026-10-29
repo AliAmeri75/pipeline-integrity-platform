@@ -2,6 +2,7 @@
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
+from academic_figures import academic_style,logarithmic_y
 
 SEVERE_LABEL='Severe → immediate action!'
 
@@ -26,7 +27,7 @@ def flag_profiles(results):
 
 def fpr_distance_figure(results):
     data=flag_profiles(results)
-    calculated=data[(data.Status=='Calculated')&pd.to_numeric(data.FPR,errors='coerce').notna()]
+    calculated=data[(data.Status=='Calculated')&(pd.to_numeric(data.FPR,errors='coerce')>0)]
     figure=go.Figure(go.Scatter(x=calculated['Distance from start (km)'],y=calculated.FPR,
         customdata=calculated[['Profile ID','Screening reason','Depth / WT']].to_numpy(),
         name='Crack profiles',mode='markers',
@@ -41,9 +42,9 @@ def fpr_distance_figure(results):
             textposition='top center',textfont=dict(color='#b91c1c',size=12),cliponaxis=False,
             marker=dict(symbol='circle-open',size=26,color='#dc2626',line=dict(width=3)),
             hovertemplate='Profile %{customdata[0]}<br>FPR %{y:.3f}<br>%{customdata[1]}<extra>'+SEVERE_LABEL+'</extra>'))
-    figure.add_hline(y=1.1,line_dash='dash',line_color='#dc2626',annotation_text='FPR = 1.1 screening threshold')
-    figure.add_hline(y=1,line_dash='dot',line_color='#64748b',annotation_text='FPR = 1')
+    figure.add_hline(y=1.1,line_dash='dash',line_color='#dc2626',annotation_text='FPR = 1.1 screening threshold',annotation_position='top right')
+    figure.add_hline(y=1,line_dash='dot',line_color='#64748b',annotation_text='FPR = 1',annotation_position='bottom right')
     figure.update_layout(template='plotly_white',xaxis_title='Distance from route start (km)',
-        yaxis_title='FPR',height=370,clickmode='event+select',margin=dict(t=65,r=75),
+        yaxis_title='FPR (log scale)',height=370,clickmode='event+select',margin=dict(t=65,r=75),
         legend=dict(orientation='h',y=-.25))
-    return figure
+    return logarithmic_y(academic_style(figure),thresholds=(1.,1.1))
