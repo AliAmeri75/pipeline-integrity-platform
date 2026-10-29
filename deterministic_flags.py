@@ -2,7 +2,7 @@
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
-from academic_figures import academic_style,logarithmic_y
+from academic_figures import academic_style
 
 SEVERE_LABEL='Severe → immediate action!'
 
@@ -45,6 +45,8 @@ def fpr_distance_figure(results):
     figure.add_hline(y=1.1,line_dash='dash',line_color='#dc2626',annotation_text='FPR = 1.1 screening threshold',annotation_position='top right')
     figure.add_hline(y=1,line_dash='dot',line_color='#64748b',annotation_text='FPR = 1',annotation_position='bottom right')
     figure.update_layout(template='plotly_white',xaxis_title='Distance from route start (km)',
-        yaxis_title='FPR (log scale)',height=370,clickmode='event+select',margin=dict(t=65,r=75),
+        yaxis_title='FPR',height=370,clickmode='event+select',margin=dict(t=65,r=75),
         legend=dict(orientation='h',y=-.25))
-    return logarithmic_y(academic_style(figure),thresholds=(1.,1.1))
+    academic_style(figure)
+    figure.update_yaxes(type='linear')
+    return figure

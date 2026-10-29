@@ -20,11 +20,11 @@ class AcademicFigureTests(unittest.TestCase):
         self.assertAlmostEqual(figure.layout.annotations[0].y,-3)
         self.assertEqual(figure.layout.annotations[0].bgcolor,'white')
 
-    def test_fpr_white_serif_and_logarithmic(self):
+    def test_fpr_white_serif_and_linear(self):
         data=pd.DataFrame({'Profile ID':['A'],'FPR':[1.05],'Status':['Calculated'],
             'Defect depth (mm)':[6.],'Wall thickness (mm)':[10.],'Distance from start (km)':[1.]})
         figure=fpr_distance_figure(data)
-        self.assertEqual(figure.layout.yaxis.type,'log')
+        self.assertEqual(figure.layout.yaxis.type,'linear')
         self.assertEqual(figure.layout.font.family,FONT)
         self.assertEqual(figure.layout.plot_bgcolor,'white')
         self.assertEqual(figure.layout.paper_bgcolor,'white')

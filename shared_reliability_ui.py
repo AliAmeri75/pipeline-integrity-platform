@@ -72,6 +72,10 @@ def render_shared_reliability(*,embedded=False):
         if title=='POF versus distance':
             st.caption('The POF vertical axis is logarithmic. Zero estimates are omitted from this plot (gaps), '
                 'not replaced with small positive values. All original values remain in the tables and downloads.')
+            for probability,label in [('burst_pf','Burst'),('leak_pf','Leakage')]:
+                if sections[probability].eq(0).all():
+                    st.caption(label+': no failures observed in this simulation (POF estimates = 0). '
+                        'No curve is visible on the log axis; this does not prove zero failure probability.')
     if sections[['burst_consequence','leak_consequence']].isna().any().any():
         st.warning('Some consequences are UNKNOWN. Their risk values remain unavailable—not zero. Complete them in Data Exploration.')
     st.caption('Risk = burst Pf × conditional burst loss + leakage Pf × conditional leakage loss. '
