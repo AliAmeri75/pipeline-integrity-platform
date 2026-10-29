@@ -100,6 +100,51 @@ does not establish overall safety. Monte Carlo zeros are not proof of zero Pf.
 Downloads carry units, probability basis and period. Input changes invalidate
 saved results; display switches retain them without rerunning Monte Carlo.
 
+### Consequence Assessment workspace
+
+Open **Reliability Analysis → Consequence Assessment** after selecting a route.
+Choose separate burst and leakage scenarios:
+
+- **Natural-gas PIR**, burst only: `r_m = 0.3048 * 0.69 * nominal_diameter_in * sqrt(MAOP_psi)`.
+  Source: [49 CFR 192.903](https://www.ecfr.gov/current/title-49/subtitle-B/chapter-I/subchapter-D/part-192/subpart-O/section-192.903).
+  This is the US natural-gas rupture screening equation, not a leakage, fatality,
+  full HCA designation or Canadian compliance calculation.
+- **Point-source thermal radiation**: `r_m = sqrt(chi * Q_MW * 1000 / (4*pi*q_kW_m2))`.
+  Source: McGrattan, Baum and Hamins (2000), [NISTIR 6546, Eq. 7](https://www.govinfo.gov/content/pkg/GOVPUB-C13-fa5a24c9e669a385816318793faac823/pdf/GOVPUB-C13-fa5a24c9e669a385816318793faac823.pdf).
+  Atmospheric attenuation is neglected. Supply a credible fire heat-release
+  rate and radiant fraction. This far-field approximation does not infer a
+  pipeline release rate, flame geometry or transient jet-fire behaviour.
+- **User-defined radius** from an independently assessed scenario.
+
+CSV/Excel templates contain one row per section with local population density
+(people/km²), asset value per m² and separate fixed burst/leak incident costs.
+Optional mode-prefixed columns override numeric scenario inputs for each section.
+Blank inputs are rejected. Defaults are illustrative, including costs and density.
+No census or GIS population layer is automatically retrieved.
+
+The section midpoint represents one release location. For a uniform local density,
+people in its footprint equal `density * pi*r² / 1e6`. The conditional exposure
+consequence multiplies this by a user-entered scenario/ignition probability.
+This estimates exposure, not injuries or fatalities. Overlapping circles cannot
+be summed as unique population; the midpoint is not the worst location in a section.
+
+Direct economic screening is `fixed response cost + scenario probability * pi*r²
+* asset value per m² * damage fraction`. Valuation and vulnerability fractions
+are supplied assumptions, not a literature-calibrated economic-loss model.
+There is no automatic value of life, environmental-loss or business-interruption
+calculation. Do not add unrelated units or double-count shared losses.
+
+Download full results with parameters, references and input source. Select a
+measure, click **Use these consequences in Reliability and Risk**, return to that
+workspace and select **Use Consequence Assessment**. Exposure transfers in people
+potentially exposed; economics transfers in the specified currency. Saved inputs
+must match the route. Risk export metadata identifies the source scenario.
+
+Heat-flux endpoint context: [EPA Appendix D](https://www.epa.gov/sites/default/files/2017-05/documents/oca-apds.pdf)
+and [NOAA radiation levels of concern](https://response.restoration.noaa.gov/oil-and-chemical-spills/chemical-spills/resources/thermal-radiation-levels-concern.html).
+Duration, shielding and scenario matter; the illustrative 5 kW/m² threshold is
+not a fatality probability or validated evacuation radius.
+
 ## Run locally
 
 ```bash

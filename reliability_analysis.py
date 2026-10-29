@@ -17,6 +17,7 @@ from profile_map import route_length_km, point_at_chainage, latest_route_from_dr
 from profile_data import parse_profile_workbook
 from reliability_model import (demo_data, calculate_crack_reliability,
                                import_feature_reliability, consequence_template, fixed_section_risk)
+from consequence_assessment import render_consequence_assessment
 
 
 def result_map(route, features, sections, column, label, pof_limit=None):
@@ -38,7 +39,7 @@ def result_map(route, features, sections, column, label, pof_limit=None):
             popup=f'Section {row.section_id}<br>{start:.3f}–{end:.3f} km<br>'
                   f'Burst Pf: {row.burst_pf:.4g}<br>Leakage Pf: {row.leak_pf:.4g}<br>'
                   f'Burst consequence: {row.burst_consequence:,.2f}<br>Leakage consequence: {row.leak_consequence:,.2f}<br>'
-                  f'Total expected loss: {row.total_risk:,.4g}').add_to(m)
+                  f'Total expected consequence: {row.total_risk:,.4g}').add_to(m)
     for row in features.itertuples():
         section = sections.iloc[int(row.section_id)-1]
         folium.CircleMarker(point_at_chainage(route,row.chainage_km),radius=6,
@@ -115,6 +116,10 @@ if new_route and new_route != route:
     st.session_state.reliability_revision += 1
     st.rerun()
 st.write(f'Route length: **{route_length_km(route):.3f} km**')
+workspace = st.radio('Reliability workspace',['Reliability and Risk','Consequence Assessment'],horizontal=True)
+if workspace=='Consequence Assessment':
+    render_consequence_assessment(route)
+    st.stop()
 
 st.subheader('Defects and analysis inputs')
 mode = st.radio('Analysis method',['Calculate crack Pf','Import crack/corrosion Pf'],horizontal=True)
@@ -167,13 +172,24 @@ st.subheader('Consequences for each kilometre')
 st.caption('Section 1 = 0–1 km, section 2 = 1–2 km, and so on. The final section may be shorter. '
            'Enter the conditional loss if a burst or leakage event occurs in each section, not an already probability-weighted loss. '
            'Use one common unit for both modes, such as CAD; environmental or life-safety effects require your own consistent valuation.')
-unit = st.text_input('Common consequence unit',value='CAD')
-consequence_source = st.radio('Consequence data',['Illustrative sample','Upload CSV or Excel','Enter section values'],horizontal=True)
+modeled = st.session_state.get('modeled_consequences')
+consequence_options = ['Illustrative sample','Upload CSV or Excel','Enter section values']
+if modeled and modeled['route']==route:
+    consequence_options.append('Use Consequence Assessment')
+consequence_source = st.radio('Consequence data',consequence_options,horizontal=True)
+if consequence_source=='Use Consequence Assessment':
+    unit = modeled['unit']
+    st.write('Consequence unit: **'+unit+'**')
+    st.caption('Using '+modeled['measure']+' from Consequence Assessment. Reassess the scenario there if assumptions change.')
+else:
+    unit = st.text_input('Common consequence unit',value='CAD')
 template = consequence_template(route)
 st.download_button('Download consequence template CSV',template.to_csv(index=False),'section_consequences_template.csv','text/csv')
 consequences = consequence_template(route,sample=consequence_source=='Illustrative sample')
 if consequence_source=='Illustrative sample':
     st.caption('Sample costs are invented to demonstrate spatial variation. They are not estimates for these Alberta locations.')
+elif consequence_source=='Use Consequence Assessment':
+    consequences = modeled['table'].copy()
 elif consequence_source=='Upload CSV or Excel':
     consequence_upload = st.file_uploader('Section consequences (section_id, burst_consequence, leak_consequence)',type=['csv','xlsx'])
     if consequence_upload is not None:
@@ -216,7 +232,8 @@ if mode == 'Calculate crack Pf':
                    'Burst is assessed for non-through-wall samples; depth ≥ WT is leakage.')
 signature = hashlib.sha256(repr((route,features.to_csv(index=False),mode,basis,period,joint_length,
                                burst_limit,leak_limit,base,uncertainty,samples,seed,
-                               consequences.to_csv(index=False),unit)).encode()).hexdigest()
+                               consequences.to_csv(index=False),unit,
+                               modeled['source_signature'] if consequence_source=='Use Consequence Assessment' else consequence_source)).encode()).hexdigest()
 if st.button('Run Reliability Analysis',type='primary'):
     try:
         if basis.startswith('UNKNOWN') or (mode == 'Import crack/corrosion Pf' and not period.strip()):
@@ -253,7 +270,7 @@ elif saved:
     st.plotly_chart(profile_figure(sections,[('burst_consequence','Burst'),('leak_consequence','Leakage')],
         'Consequence versus distance','Conditional consequence ('+unit+')'),width='stretch')
     st.plotly_chart(profile_figure(sections,[('burst_risk','Burst'),('leak_risk','Leakage'),('total_risk','Total')],
-        'Risk versus distance','Expected loss ('+risk_unit+')'),width='stretch')
+        'Risk versus distance','Expected consequence ('+risk_unit+')'),width='stretch')
     view = st.radio('Map view',['POF','Consequence','Risk'],horizontal=True)
     mode_options = ['Burst','Leakage','Total'] if view=='Risk' else ['Burst','Leakage']
     map_mode = st.selectbox('Map failure mode',mode_options,index=2 if view=='Risk' else 0)
@@ -268,10 +285,13 @@ elif saved:
     st_folium(result_map(route,assessed,sections,column,label,selected_limit),height=500,width=1100,returned_objects=[],key=f'reliability_output_{signature}_{column}')
     st.markdown('**Each crack/corrosion feature**')
     st.dataframe(assessed,hide_index=True,width='stretch')
-    st.markdown('**Fixed 1 km sections — highest expected loss first**')
+    st.markdown('**Fixed 1 km sections — highest expected consequence first**')
     st.dataframe(sections.sort_values('total_risk',ascending=False),hide_index=True,width='stretch')
     for label,table,name in [('Feature results',assessed,'feature_reliability.csv'),
                              ('Joint results',joints,'joint_reliability.csv'),
                              ('Section risk results',sections,'fixed_1km_risk.csv')]:
-        export = table.assign(probability_basis=basis,assessment_period=period,consequence_unit=unit,risk_unit=risk_unit)
+        consequence_basis = (modeled['measure']+'; scenario '+modeled['source_signature']
+                             if consequence_source=='Use Consequence Assessment' else consequence_source)
+        export = table.assign(probability_basis=basis,assessment_period=period,consequence_unit=unit,
+                              risk_unit=risk_unit,consequence_source=consequence_basis)
         st.download_button(f'Download {label}',export.to_csv(index=False),name,'text/csv')
