@@ -8,6 +8,12 @@ from deterministic_model import analyze_deterministic_profiles
 from profile_data import (ProfileFormatError,parse_profile_workbook,summary_for_defect_type,
                           synthetic_sample_workbook,summary_xlsx)
 from profile_visuals import render_linked_measured_profile,measured_profile_on_pipe_figure
+from corlas_profile_map import evaluate_profile_grid,minimum_grid_result,corlas_depth_pressure_figure
+
+
+@st.cache_data(show_spinner=False)
+def _corlas_measured_grid(profile,base,wall,diameter,length):
+    return evaluate_profile_grid(profile,base,wall,diameter,length)
 
 
 def _select_table(key,profile_ids):
@@ -131,6 +137,35 @@ def render_deterministic_analysis():
         chosen = result.loc[result['Profile ID'].astype(str)==selected].iloc[0]
         st.write(f'Profile {selected} · {defect_type} · '+
             (f'FPR {chosen.FPR:.3f}' if pd.notna(chosen.FPR) else str(chosen.Status)))
+        if defect_type=='Crack':
+            try:
+                with st.spinner('Evaluating CorLAS at the measured depths…'):
+                    cells=_corlas_measured_grid(profiles[selected],base,row['Wall thickness (mm)'],
+                        row['Outside diameter (mm)'],row['Profile length (mm)'])
+                lowest=minimum_grid_result(cells)
+                cards=st.columns(3)
+                cards[0].metric('Minimum calculated FPR · '+selected,
+                    f'{lowest["FPR"]:.3f}' if lowest else 'Unavailable',border=True)
+                cards[1].metric('Minimum CorLAS burst pressure',
+                    f'{lowest["Burst resistance pressure (psi)"]:,.1f} psi' if lowest else 'Unavailable',border=True)
+                cards[2].metric('Grid cells evaluated',f'{int((cells.Status=="Calculated").sum())} / {len(cells)}',border=True)
+                st.caption('Every calculated cell uses its measured depth, the full profile length '
+                    f'({row["Profile length (mm)"]:.2f} mm), and the same pipe/material inputs. '
+                    'This is a depth-sensitivity screening map, not a set of independent cell-sized cracks or a profile-interaction analysis. '
+                    'Black crosses mark the minimum calculated FPR.')
+                unsupported=cells[~cells.Status.isin(['Calculated','Zero depth: no crack resistance calculated'])]
+                if not unsupported.empty:
+                    st.warning(f'{len(unsupported)} cells could not be evaluated by CorLAS and are excluded from the minimum. '
+                        'Through-wall depths are not assigned a burst resistance. Review the point results before interpreting the minimum.')
+                st.plotly_chart(corlas_depth_pressure_figure(cells,selected),width='stretch',key='det_corlas_'+signature+'_'+selected)
+                st.download_button('Download pointwise CorLAS results',
+                    cells.assign(profile_id=selected,wall_thickness_mm=row['Wall thickness (mm)'],
+                        outside_diameter_mm=row['Outside diameter (mm)']).to_csv(index=False),
+                    f'{selected}_corlas_pressure_map.csv','text/csv')
+                with st.expander('Pointwise depth, burst pressure and FPR values'):
+                    st.dataframe(cells,hide_index=True,width='stretch')
+            except (ValueError,TypeError) as error:
+                st.error(str(error))
     try:
         st.plotly_chart(measured_profile_on_pipe_figure(profiles[selected],row['Wall thickness (mm)'],
             row['Outside diameter (mm)'],selected,defect_type),width='stretch',key='det_pipe_'+signature+'_'+selected)

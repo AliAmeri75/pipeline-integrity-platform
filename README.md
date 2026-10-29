@@ -57,6 +57,25 @@ available. The lowest calculated FPR is summarized for each represented nominal
 No route endpoint is inferred from the profile workbook. Unsupported corrosion
 resistance remains unavailable; corrosion geometry can still be visualized.
 
+After running deterministic analysis, the selected crack profile also shows a
+measured-depth heatmap beside a CorLAS burst-pressure heatmap on the same axial
+and circumferential coordinates. Each valid measured depth is evaluated with
+the **full profile length held fixed**, its pipe geometry and the entered material
+properties. This is a depth-sensitivity screening map, not independent tiny
+cracks or a spatial crack-interaction/equivalent-area calculation. Resistance is
+unadjusted CorLAS pressure in psi; point FPR is that pressure divided by operating
+pressure. Cards show the minimum calculated point FPR, its burst pressure and the
+number of evaluated cells. Crosses locate the minimum on both maps. Selecting
+another profile updates the cards and heatmaps; results are cached by profile
+and inputs. Point CSV downloads include measured depth, coordinates, resistance,
+FPR, profile length, pressure and calculation status.
+
+Zero depths are not treated as cracks. Missing/negative depths, through-wall
+depths and failed model evaluations receive no fabricated resistance or FPR;
+the minimum excludes them and the app flags incomplete coverage. Through-wall
+measurements require separate leakage assessment. Corrosion still requires its
+own resistance model and does not receive a crack-model heatmap.
+
 In the **Risk & Reliability** tab, calculate
 feature Pf and map fixed 1 km sections with consequences and risk, without running any scheduling
 study. The page includes a fictional 100 km Alberta route and crack CSV, route
