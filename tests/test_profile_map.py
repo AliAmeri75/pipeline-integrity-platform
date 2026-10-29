@@ -8,6 +8,17 @@ from profile_map import locate_profiles_on_route, point_at_chainage, route_lengt
 
 
 class ProfileMapTests(unittest.TestCase):
+    def test_cached_two_argument_map_helper_is_refreshed(self):
+        import profile_map
+        from streamlit.testing.v1 import AppTest
+        def legacy_renderer(summary,selected_profile_id):
+            raise AssertionError('Old map helper should be refreshed before use')
+        with patch.object(profile_map,'render_profile_location_map',legacy_renderer):
+            app=AppTest.from_file(str(Path(__file__).resolve().parents[1]/'data_integration.py'),default_timeout=60).run()
+            self.assertEqual(len(app.exception),0)
+            self.assertIn('Pipeline and defect locations',[s.value for s in app.subheader])
+            self.assertEqual(app.session_state.exploration_selected_profile,'SYN-001')
+
     def test_click_selection_distinguishes_same_location_markers(self):
         mapped=pd.DataFrame({'Profile ID':['A','B'],'Joint ID':['Joint 1','Joint 1'],
                              'Latitude':[53.5,53.5],'Longitude':[-113.5,-113.5]})

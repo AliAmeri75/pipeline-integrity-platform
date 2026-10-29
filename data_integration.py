@@ -7,7 +7,7 @@ import pandas as pd
 import streamlit as st
 
 from platform_ui import render_project_hero
-from profile_map import render_profile_location_map
+from exploration_map import render_exploration_map
 from profile_data import (
     ProfileFormatError,
     maximum_depth_envelope,
@@ -115,7 +115,7 @@ if st.session_state.get(selection_key) not in profile_ids:
     st.session_state[selection_key]=profile_ids[0]
 st.subheader('Pipeline and defect locations')
 st.write('Start with the pipeline map. Click a defect marker or choose a profile below to inspect its 3D shape on the pipe and its measured depth profile.')
-render_profile_location_map(summary,st.session_state[selection_key],selection_key=selection_key)
+render_exploration_map(summary,st.session_state[selection_key],selection_key=selection_key)
 selected_profile_id = st.selectbox(
     "Feature profile",
     profile_ids,
