@@ -202,9 +202,32 @@ def locate_profiles_on_route(
     return mapped, outside, metadata
 
 
+def profile_from_map_click(mapped: pd.DataFrame, event: Mapping[str, object]) -> str | None:
+    """Identify a clicked feature marker, not an arbitrary click on the route."""
+    if mapped.empty:
+        return None
+    tooltip=event.get('last_object_clicked_tooltip')
+    if tooltip:
+        for _,row in mapped.iterrows():
+            if str(tooltip).strip()==f"Profile {row['Profile ID']} — {row['Joint ID']}":
+                return str(row['Profile ID'])
+        return None
+    clicked=event.get('last_object_clicked')
+    if not isinstance(clicked,Mapping):
+        return None
+    try:
+        distances=mapped.apply(lambda row:haversine_distance_km(
+            [float(clicked['lat']),float(clicked['lng'])],[row['Latitude'],row['Longitude']]),axis=1)
+        nearest=distances.idxmin()
+        return str(mapped.loc[nearest,'Profile ID']) if distances.loc[nearest]<=.0005 else None
+    except (ValueError,TypeError,KeyError):
+        return None
+
+
 def render_profile_location_map(
     summary: pd.DataFrame,
     selected_profile_id: str,
+    *, selection_key: str | None = None,
 ) -> pd.DataFrame:
     """Render an editable pipeline route with profile locations and joint IDs."""
 
@@ -388,7 +411,7 @@ def render_profile_location_map(
         pipeline_map,
         height=560,
         use_container_width=True,
-        returned_objects=["all_drawings"],
+        returned_objects=["all_drawings","last_object_clicked","last_object_clicked_tooltip","last_object_clicked_count"],
         key=f"data_exploration_pipeline_map_{st.session_state[revision_key]}",
     )
     new_route = latest_route_from_drawings(map_result.get("all_drawings") or [])
@@ -396,6 +419,17 @@ def render_profile_location_map(
         st.session_state[route_key] = new_route
         st.session_state[revision_key] += 1
         st.rerun()
+    if selection_key is not None:
+        clicked_profile=profile_from_map_click(mapped,map_result)
+        clicked=map_result.get('last_object_clicked')
+        token=repr((st.session_state[revision_key],map_result.get('last_object_clicked_count'),
+                    clicked,map_result.get('last_object_clicked_tooltip')))
+        handled_key='data_exploration_handled_marker_click'
+        if clicked_profile and token!=st.session_state.get(handled_key):
+            st.session_state[handled_key]=token
+            if clicked_profile!=st.session_state.get(selection_key):
+                st.session_state[selection_key]=clicked_profile
+                st.rerun()
 
     if mapping_error:
         st.error(mapping_error)
@@ -420,8 +454,8 @@ def render_profile_location_map(
         )
     if not mapped.empty:
         st.caption(
-            "The blue marker is the profile selected above. Red markers are cracks; "
-            "orange markers are corrosion/metal loss. Click a marker for details."
+            "The blue marker is the selected profile. Red markers are cracks; "
+            "orange markers are corrosion/metal loss. Click a defect marker to update its 3D and measured-profile views below."
         )
         map_columns = [
             "Profile ID",

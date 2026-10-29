@@ -110,9 +110,16 @@ st.session_state["prepared_profile_source_name"] = source_name
 st.session_state["prepared_profile_defect_type"] = defect_type
 
 profile_ids = summary["Profile ID"].astype(str).tolist()
+selection_key='exploration_selected_profile'
+if st.session_state.get(selection_key) not in profile_ids:
+    st.session_state[selection_key]=profile_ids[0]
+st.subheader('Pipeline and defect locations')
+st.write('Start with the pipeline map. Click a defect marker or choose a profile below to inspect its 3D shape on the pipe and its measured depth profile.')
+render_profile_location_map(summary,st.session_state[selection_key],selection_key=selection_key)
 selected_profile_id = st.selectbox(
     "Feature profile",
     profile_ids,
+    key=selection_key,
     format_func=lambda profile_id: (
         f"Profile {profile_id} · Feature "
         f"{summary.loc[summary['Profile ID'].astype(str) == profile_id, 'Feature ID'].iloc[0]}"
@@ -139,19 +146,9 @@ st.caption(
     "colour and tooltips show depth in millimetres; otherwise they show %WT."
 )
 
-st.markdown("#### Measured 2D and 3D profile")
-st.write(
-    "Move the pointer over either figure to inspect the same measured cell in both "
-    "views. Colour and the readout show the recorded depth; the 3D vertical scale is "
-    "enlarged only to make the shape visible."
-)
-render_linked_measured_profile(
-    selected_profile,
-    selected_row["Wall thickness (mm)"],
-    selected_profile_id,
-)
+st.markdown("#### 3D pipe and selected defect")
 st.caption(
-    "The next view places the measured grid on a pipe for context. The surface "
+    "This view places the measured grid on a pipe for context. The surface "
     "depression is enlarged so it can be seen; colour and tooltips retain the "
     "measured depth."
 )
@@ -164,6 +161,18 @@ st.plotly_chart(
         defect_type,
     ),
     width="stretch",
+)
+
+st.markdown("#### Measured 2D and 3D profile")
+st.write(
+    "Move the pointer over either figure to inspect the same measured cell in both "
+    "views. Colour and the readout show the recorded depth; the 3D vertical scale is "
+    "enlarged only to make the shape visible."
+)
+render_linked_measured_profile(
+    selected_profile,
+    selected_row["Wall thickness (mm)"],
+    selected_profile_id,
 )
 
 envelope = maximum_depth_envelope(selected_profile)
@@ -181,14 +190,6 @@ profile_area = (
     .properties(height=275, title="Maximum-depth profile along feature length")
 )
 st.altair_chart(profile_area, width="stretch")
-
-st.subheader("Pipeline and defect locations")
-st.write(
-    "Draw the pipeline on a street or satellite map. The app places every profile at "
-    "its recorded chainage and assigns profiles within the same 12 m interval to one "
-    "pipe joint. Select a profile above to highlight it on the map."
-)
-render_profile_location_map(summary, selected_profile_id)
 
 st.subheader("Size and location output")
 if defect_type == "Crack":

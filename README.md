@@ -43,6 +43,14 @@ standalone simulation directly so users do not pass through two introductions.
 
 ## Preliminary Analysis
 
+Data Exploration presents **Pipeline and defect locations** before the selected
+profile figures. Click a defect marker or choose **Feature profile** to update
+the highlighted marker, 3D measured defect on the pipe and linked 2D/3D depth views.
+The pipe view appears first among the profile figures. Marker selection matches
+the feature tooltip (including co-located profiles), while old click events do
+not override a subsequent dropdown choice. Route drawing and joint grouping are
+unchanged.
+
 Under **Maintenance Planning (Cracks/Corrosion) → Preliminary Analysis**, switch
 between **Deterministic Analysis**, **Risk & Reliability** and **Consequence Assessment**.
 There is no separate Reliability Analysis sidebar entry.

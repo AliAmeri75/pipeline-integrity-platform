@@ -1,11 +1,42 @@
 import unittest
+from unittest.mock import patch
+from pathlib import Path
 
 import pandas as pd
 
-from profile_map import locate_profiles_on_route, point_at_chainage, route_length_km
+from profile_map import locate_profiles_on_route, point_at_chainage, route_length_km,profile_from_map_click
 
 
 class ProfileMapTests(unittest.TestCase):
+    def test_click_selection_distinguishes_same_location_markers(self):
+        mapped=pd.DataFrame({'Profile ID':['A','B'],'Joint ID':['Joint 1','Joint 1'],
+                             'Latitude':[53.5,53.5],'Longitude':[-113.5,-113.5]})
+        event=dict(last_object_clicked=dict(lat=53.5,lng=-113.5),last_object_clicked_tooltip='Profile B — Joint 1')
+        self.assertEqual(profile_from_map_click(mapped,event),'B')
+        event['last_object_clicked_tooltip']='Pipeline centreline'
+        self.assertIsNone(profile_from_map_click(mapped,event))
+        self.assertIsNone(profile_from_map_click(mapped,dict(last_object_clicked=dict(lat=53.6,lng=-113.5))))
+
+    def test_map_precedes_views_and_click_updates_selection_without_replay(self):
+        from streamlit.testing.v1 import AppTest
+        app=AppTest.from_file(str(Path(__file__).resolve().parents[1]/'data_integration.py'),default_timeout=60).run()
+        self.assertEqual(len(app.exception),0)
+        headings=[s.value for s in app.subheader]
+        self.assertLess(headings.index('Pipeline and defect locations'),headings.index('Selected profile'))
+        row=app.session_state.prepared_profile_map.iloc[1]
+        event=dict(all_drawings=[],last_object_clicked=dict(lat=float(row.Latitude),lng=float(row.Longitude)),
+            last_object_clicked_tooltip=f"Profile {row['Profile ID']} — {row['Joint ID']}",last_object_clicked_count=1)
+        with patch('profile_map.st_folium',return_value=event):
+            app.run()
+            self.assertEqual(app.session_state.exploration_selected_profile,str(row['Profile ID']))
+            next(s for s in app.selectbox if s.label=='Feature profile').select_index(2).run()
+            # An old marker event must not undo a later dropdown choice.
+            self.assertEqual(app.session_state.exploration_selected_profile,'SYN-003')
+            event['last_object_clicked_count']=2
+            app.run()
+            self.assertEqual(app.session_state.exploration_selected_profile,str(row['Profile ID']))
+        self.assertEqual(len(app.exception),0)
+
     def setUp(self):
         self.route = [[53.5, -113.5], [53.5, -113.3]]
 
