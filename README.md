@@ -88,7 +88,8 @@ the stochastic model factor θ. Select a result row or FPR plot point to view th
 same feature in 3D. Segment summaries retain the saved arbitrary boundaries.
 
 Red circles mark the user-selected screening rule **FPR < 1.1 OR depth > 0.5 WT**,
-with “Severe → immediate action!” and the reason in the table and exports.
+with a single “Severe → immediate action!” legend entry rather than repeated
+point labels. Hover details, the table and exports retain each defect’s reason.
 This user-configured screening label is not a code-compliance or approved
 repair decision.
 

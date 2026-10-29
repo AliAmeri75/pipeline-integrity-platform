@@ -38,8 +38,7 @@ def fpr_distance_figure(results):
     if not severe.empty:
         figure.add_trace(go.Scatter(x=severe['Distance from start (km)'],y=severe.FPR,
             customdata=severe[['Profile ID','Screening reason','Depth / WT']].to_numpy(),
-            mode='markers+text',name=SEVERE_LABEL,text=[SEVERE_LABEL]*len(severe),
-            textposition='top center',textfont=dict(color='#b91c1c',size=12),cliponaxis=False,
+            mode='markers',name=SEVERE_LABEL,showlegend=True,
             marker=dict(symbol='circle-open',size=26,color='#dc2626',line=dict(width=3)),
             hovertemplate='Profile %{customdata[0]}<br>FPR %{y:.3f}<br>%{customdata[1]}<extra>'+SEVERE_LABEL+'</extra>'))
     figure.add_hline(y=1.1,line_dash='dash',line_color='#dc2626',annotation_text='FPR = 1.1 screening threshold',annotation_position='top right')
