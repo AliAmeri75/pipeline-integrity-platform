@@ -4,7 +4,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 from education.pof_model import POFInputs
-from preliminary_analysis_model import analyze_deterministic_profiles
+from deterministic_model import analyze_deterministic_profiles
 from profile_data import (ProfileFormatError,parse_profile_workbook,summary_for_defect_type,
                           synthetic_sample_workbook,summary_xlsx)
 from profile_visuals import render_linked_measured_profile,measured_profile_on_pipe_figure

@@ -160,8 +160,6 @@ def analyze_crack_profiles(
 
 
 def analyze_deterministic_profiles(summary: pd.DataFrame,base_inputs: POFInputs) -> pd.DataFrame:
-    """Resistance/FPR only; never calls the Monte Carlo simulation."""
-    result = analyze_crack_profiles(summary,base_inputs,UncertaintyInputs(),deterministic_only=True)
-    result = result.drop(columns=['POF','Monte Carlo failures','Monte Carlo samples'])
-    result['Defect type'] = summary.get('Defect type',pd.Series('Crack',index=summary.index)).to_numpy()
-    return result.rename(columns={'Crack depth (mm)':'Defect depth (mm)','Crack length (mm)':'Defect length (mm)'})
+    """Compatibility wrapper; the UI imports the independent deterministic model."""
+    from deterministic_model import analyze_deterministic_profiles as calculate
+    return calculate(summary,base_inputs)

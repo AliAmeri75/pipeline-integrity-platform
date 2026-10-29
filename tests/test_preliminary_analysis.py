@@ -1,4 +1,6 @@
 import unittest
+import subprocess
+import sys
 from unittest.mock import patch
 
 from education.pof_model import POFInputs, UncertaintyInputs
@@ -11,6 +13,23 @@ from profile_data import (
 
 
 class PreliminaryAnalysisTests(unittest.TestCase):
+    def test_deterministic_ui_import_with_old_cached_preliminary_module(self):
+        code = '''
+import sys,types
+old = types.ModuleType("preliminary_analysis_model")
+sys.modules["preliminary_analysis_model"] = old
+from deterministic_analysis import render_deterministic_analysis
+from deterministic_model import analyze_deterministic_profiles
+from education.pof_model import POFInputs
+from profile_data import parse_profile_workbook,synthetic_sample_workbook,summary_for_defect_type
+summary,_ = parse_profile_workbook(synthetic_sample_workbook())
+result = analyze_deterministic_profiles(summary_for_defect_type(summary,"Crack"),POFInputs())
+assert (result.Status=="Calculated").all()
+assert "POF" not in result
+'''
+        completed = subprocess.run([sys.executable,'-c',code],capture_output=True,text=True)
+        self.assertEqual(completed.returncode,0,completed.stderr)
+
     def test_deterministic_mode_never_runs_monte_carlo(self):
         summary,_ = parse_profile_workbook(synthetic_sample_workbook())
         cracks = summary_for_defect_type(summary,'Crack')
