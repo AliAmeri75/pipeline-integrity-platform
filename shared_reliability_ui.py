@@ -4,6 +4,7 @@ import streamlit as st
 from streamlit_folium import st_folium
 from assessment_project import reliability_project,project_signature
 from project_editor import get_project
+from reliability_flags import flag_probabilities,annotate_pof_figure,ACTION_LABEL
 
 
 def render_shared_reliability(*,embedded=False):
@@ -44,6 +45,15 @@ def render_shared_reliability(*,embedded=False):
         st.info('The shared dataset or simulation settings changed. Run Reliability Analysis again.')
         return
     _,assessed,joints,sections=saved
+    assessed=flag_probabilities(assessed,burst_limit,leak_limit)
+    joints=flag_probabilities(joints,burst_limit,leak_limit)
+    sections=flag_probabilities(sections,burst_limit,leak_limit)
+    critical=sections[sections.action_required]
+    if not critical.empty:
+        st.warning('→ '+ACTION_LABEL+' POF threshold exceeded in segment(s): '+
+            ', '.join(str(int(s)) for s in critical.section_id)+'.')
+    st.caption('Immediate action is your screening flag when burst POF > its threshold OR leakage POF > its threshold. '
+        'Equality does not trigger it. This flags locations for engineering review; it is not a regulatory repair instruction.')
     unit=project['consequence_unit'] or 'UNKNOWN unit'
     st.subheader('POF, consequence and risk profiles')
     st.caption('Segments use the boundaries saved in Data Exploration, not a separate 1 km grid. '
@@ -55,7 +65,10 @@ def render_shared_reliability(*,embedded=False):
         ([('burst_pf','Burst'),('leak_pf','Leakage')],'POF versus distance','Assessment-condition probability'),
         ([('burst_consequence','Burst'),('leak_consequence','Leakage')],'Consequence versus distance','Conditional consequence ('+unit+')'),
         ([('burst_risk','Burst'),('leak_risk','Leakage'),('total_risk','Total')],'Risk versus distance','Expected consequence ('+unit+' per assessment)')]:
-        st.plotly_chart(profile_figure(sections,columns,title,ylabel),width='stretch')
+        figure=profile_figure(sections,columns,title,ylabel)
+        if title=='POF versus distance':
+            figure=annotate_pof_figure(figure,sections,burst_limit,leak_limit)
+        st.plotly_chart(figure,width='stretch')
     if sections[['burst_consequence','leak_consequence']].isna().any().any():
         st.warning('Some consequences are UNKNOWN. Their risk values remain unavailable—not zero. Complete them in Data Exploration.')
     st.caption('Risk = burst Pf × conditional burst loss + leakage Pf × conditional leakage loss. '
@@ -67,9 +80,10 @@ def render_shared_reliability(*,embedded=False):
     column={'Burst':'burst','Leakage':'leak','Total':'total'}[failure_mode]+'_'+{'POF':'pf','Consequence':'consequence','Risk':'risk'}[view]
     limit=(burst_limit if failure_mode=='Burst' else leak_limit) if view=='POF' else None
     st.caption('POF red marks the selected screening threshold; consequence/risk colours are relative. Grey means UNKNOWN. '
-        'These colours are not regulatory risk categories.')
+        'Red outlines and white-backed “Immediate action!” labels flag segments exceeding either POF threshold, '
+        'regardless of the selected map layer. These colours are not regulatory risk categories.')
     st_folium(result_map(project['route'],assessed,sections,column,failure_mode+' '+view,limit),
-        height=500,width=1100,returned_objects=[],key='shared_risk_map_'+signature+'_'+column)
+        height=500,width=1100,returned_objects=[],key='shared_risk_map_'+signature+'_'+column+repr((burst_limit,leak_limit)))
     for label,table,filename in [('Defect probabilities',assessed,'defect_probabilities.csv'),
             ('Joint–segment probabilities',joints,'joint_segment_probabilities.csv'),
             ('Segment POF, consequence and risk',sections,'segment_risk.csv')]:

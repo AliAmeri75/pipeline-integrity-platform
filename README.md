@@ -142,6 +142,16 @@ safety. Zero observed failures do not demonstrate zero Pf; the approximate 95%
 upper bound at zero failures is 3/N. Downloads retain the dataset signature and
 probability basis.
 
+Selected-threshold screening: burst Pf strictly above its selected limit OR
+leakage Pf strictly above its limit flags **→ Immediate action!**. The POF chart
+adds threshold lines and circles at flagged segment midpoints. The map adds red
+segment outlines and white-backed action labels in every layer; individual
+defects exceeding a threshold receive red rings. Segment and defect flags are
+distinct: an aggregate segment can exceed a limit even when no individual
+feature does. Tables and CSVs include status, reason and both selected limits.
+Changing a screening limit reclassifies saved probabilities without another
+simulation. These are user-configured review flags, not regulatory repair orders.
+
 ### Consequence Assessment workspace
 
 Open **Preliminary Analysis → Consequence Assessment** after saving the shared

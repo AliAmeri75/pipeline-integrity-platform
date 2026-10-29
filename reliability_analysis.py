@@ -25,21 +25,40 @@ def result_map(route, features, sections, column, label, pof_limit=None):
         start,end = row.start_km,row.end_km
         points = [start]+[d for d in vertices if start<d<end]+[end]
         value = float(getattr(row,column))
+        critical=bool(getattr(row,'action_required',False))
+        reason=html.escape(str(getattr(row,'screening_reason','')))
+        action=('<br><b>→ Immediate action!</b><br>'+reason) if critical else ''
+        if critical:
+            folium.PolyLine([point_at_chainage(route,float(d)) for d in points],weight=13,
+                color='#dc2626',opacity=.9,tooltip=f'Segment {row.section_id} → Immediate action! '+reason).add_to(m)
+            folium.Marker(point_at_chainage(route,(start+end)/2),icon=folium.DivIcon(
+                icon_size=(230,40),icon_anchor=(0,32),html=(
+                    '<div style="background:white;color:#991b1b;border:2px solid #dc2626;'
+                    'border-radius:6px;padding:6px 9px;font-weight:700;white-space:nowrap;'
+                    'box-shadow:0 2px 8px #0003;">Segment '+str(int(row.section_id))+
+                    ' → Immediate action!</div>')),tooltip=reason).add_to(m)
         folium.PolyLine([point_at_chainage(route,float(d)) for d in points],weight=7,
             color=scale(value) if np.isfinite(value) else '#94a3b8',tooltip=f'Segment {row.section_id}: {start:.3f}–{end:.3f} km; {label}: '+(f'{value:.4g}' if np.isfinite(value) else 'UNKNOWN'),
             popup=f'Segment {row.section_id}<br>{start:.3f}–{end:.3f} km<br>'
                   f'Burst Pf: {row.burst_pf:.4g}<br>Leakage Pf: {row.leak_pf:.4g}<br>'
                   f'Burst consequence: {number(row.burst_consequence)}<br>Leakage consequence: {number(row.leak_consequence)}<br>'
-                  f'Total expected consequence: {number(row.total_risk)}').add_to(m)
+                  f'Total expected consequence: {number(row.total_risk)}'+action).add_to(m)
     for row in features.itertuples():
         section = sections.set_index('section_id').loc[int(row.section_id)]
+        feature_critical=bool(getattr(row,'action_required',False))
+        if feature_critical:
+            folium.CircleMarker(point_at_chainage(route,row.chainage_km),radius=12,
+                color='#dc2626',weight=3,fill=False,
+                tooltip=html.escape(str(row.feature_id))+' → Immediate action! '+
+                    html.escape(str(getattr(row,'screening_reason','')))).add_to(m)
         folium.CircleMarker(point_at_chainage(route,row.chainage_km),radius=6,
             color=scale(float(section[column])) if np.isfinite(section[column]) else '#94a3b8',fill=True,fill_opacity=.9,
             tooltip=f'{html.escape(str(row.feature_id))}: {row.defect_type}',
             popup=f'{html.escape(str(row.feature_id))}<br>Joint {row.joint_number}<br>'
                   f'Feature burst Pf: {row.burst_pf:.3g}<br>Feature leakage Pf: {row.leak_pf:.3g}<br>'
                   f'Segment {row.section_id}: {section.start_km:.3f}–{section.end_km:.3f} km<br>'
-                  f'{label}: {number(section[column])}').add_to(m)
+                  f'{label}: {number(section[column])}'+
+                  ('<br><b>→ Immediate action!</b><br>'+html.escape(str(row.screening_reason)) if feature_critical else '')).add_to(m)
     folium.LayerControl().add_to(m)
     m.fit_bounds(route)
     return readable_map_overlays(m)
