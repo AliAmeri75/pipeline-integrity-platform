@@ -4,7 +4,7 @@ from platform_ui import render_project_hero
 from deterministic_analysis import render_deterministic_analysis
 from reliability_analysis import render_reliability_analysis
 from consequence_assessment import render_consequence_assessment
-from reliability_model import demo_data
+from project_editor import get_project
 
 render_project_hero(
     'Maintenance Planning (Cracks/Corrosion)',
@@ -19,7 +19,5 @@ with deterministic:
 with reliability:
     render_reliability_analysis(embedded=True)
 with consequence:
-    route = st.session_state.get('reliability_route')
-    if route is None:
-        route, _ = demo_data()
-    render_consequence_assessment(route)
+    project=get_project()
+    render_consequence_assessment(project['route'],segment_table=project['segments'])

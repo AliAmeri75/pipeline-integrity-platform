@@ -1,14 +1,12 @@
 """Deterministic FPR workflow with selectable measured defect visualizations."""
-import hashlib
 import pandas as pd
 import streamlit as st
-from education.pof_model import POFInputs
-from deterministic_model import analyze_deterministic_profiles
 from deterministic_flags import flag_profiles,fpr_distance_figure,SEVERE_LABEL
-from profile_data import (ProfileFormatError,parse_profile_workbook,summary_for_defect_type,
-                          synthetic_sample_workbook,summary_xlsx)
+from profile_data import summary_xlsx
 from profile_visuals import render_linked_measured_profile,measured_profile_on_pipe_figure
 from corlas_profile_map import evaluate_profile_grid,minimum_grid_result,corlas_depth_pressure_figure
+from project_editor import get_project
+from assessment_project import (deterministic_project,project_signature,segment_inputs,assessment_geometry)
 
 
 @st.cache_data(show_spinner=False)
@@ -33,58 +31,19 @@ def _select_chart(key):
 def render_deterministic_analysis():
     st.subheader('Deterministic Analysis')
     st.write('Calculate burst resistance and FPR for each crack, then inspect its measured 2D/3D shape on the pipe.')
-    prepared = st.session_state.get('prepared_profile_workbook')
-    options = ['Sample crack profiles','Upload a profile workbook']
-    if prepared is not None:
-        options.insert(0,'Profiles from Data Exploration')
-    source = st.radio('Deterministic data source',options,horizontal=True,key='det_source')
-    content = None
-    if source=='Sample crack profiles':
-        content = synthetic_sample_workbook()
-        st.caption('Sample crack-profile data.')
-    elif source=='Profiles from Data Exploration':
-        content = prepared
-    else:
-        upload = st.file_uploader('Crack/corrosion profile workbook',type=['xlsx','xlsm'],key='det_workbook')
-        if upload is not None:
-            content = upload.getvalue()
-    if content is None:
-        st.info('Upload a measured profile workbook to calculate FPR and inspect the 3D profiles.')
-        return
-    prepared_type = st.session_state.get('prepared_profile_defect_type','Crack')
-    defect_type = st.selectbox('Deterministic profile type',['Crack','Corrosion / metal loss'],
-        index=1 if source=='Profiles from Data Exploration' and prepared_type!='Crack' else 0,key='det_type')
-    try:
-        summary,profiles = parse_profile_workbook(content)
-        summary = summary_for_defect_type(summary,defect_type)
-    except (ProfileFormatError,ValueError) as error:
-        st.error(str(error))
-        return
+    project=get_project()
+    summary,profiles=assessment_geometry(project)
+    st.info('Using the saved Data Exploration dataset: '+project['source']+'. '
+            'Edit the route, defects, segment properties and uncertainties in Data Exploration—not here.')
     st.caption('Crack resistance uses the existing CorLAS model. Corrosion can be visualized, '
                'but FPR is marked unavailable until a corrosion-specific resistance model is selected.')
-    with st.form('deterministic_parameters'):
-        a,b,c = st.columns(3)
-        yield_strength = a.number_input('Deterministic yield strength (psi)',1000.,200000.,57200.)
-        ultimate = b.number_input('Deterministic ultimate strength (psi)',1001.,250000.,73920.)
-        pressure = c.number_input('Deterministic operating pressure (psi)',1.,10000.,936.)
-        elastic = a.number_input('Deterministic elastic modulus (GPa)',1.,500.,210.)
-        charpy = b.number_input('Deterministic Charpy energy (model units)',1.,500.,85.)
-        origin = c.number_input('Route start chainage (m)',value=0.,step=100.)
-        run = st.form_submit_button('Run Deterministic Analysis',type='primary')
-    base = POFInputs(yield_strength_psi=yield_strength,ultimate_strength_psi=ultimate,
-        operating_pressure_psi=pressure,elastic_modulus_gpa=elastic,charpy_energy=charpy)
-    signature = hashlib.sha256(content+repr((defect_type,base,origin)).encode()).hexdigest()
+    with st.expander('Review shared segment properties'):
+        st.dataframe(project['segments'],hide_index=True,width='stretch')
+    run=st.button('Run Deterministic Analysis',type='primary')
+    signature=project_signature(project)
     if run:
         try:
-            if ultimate<=yield_strength:
-                raise ValueError('Ultimate strength must exceed yield strength.')
-            result = analyze_deterministic_profiles(summary,base)
-            distances = pd.to_numeric(result['Feature location (m)'],errors='coerce')-origin
-            if distances.isna().any() or (distances<0).any():
-                raise ValueError('Feature locations must be valid and not before the selected route start.')
-            result['Distance from start (km)'] = distances/1000
-            result['Section ID'] = (distances//1000).astype(int)+1
-            result = flag_profiles(result)
+            result=deterministic_project(project)
             st.session_state.deterministic_output = (signature,result)
         except (ValueError,KeyError,TypeError) as error:
             st.error(str(error))
@@ -109,12 +68,12 @@ def render_deterministic_analysis():
             figure = fpr_distance_figure(result)
             chart_key = 'det_result_chart_'+signature
             st.plotly_chart(figure,width='stretch',key=chart_key,on_select=lambda:_select_chart(chart_key),selection_mode='points')
-            sections = result.groupby('Section ID',as_index=False).agg(
+            sections = result.groupby('Segment ID',as_index=False).agg(
                 **{'Lowest calculated FPR':('FPR','min'),'Recorded defects':('Profile ID','size'),
                    'Calculated defects':('FPR','count')})
-            sections['Section start (km)'] = sections['Section ID']-1
-            sections['Section end (km)'] = sections['Section ID']
-            st.markdown('**Lowest calculated defect FPR in each represented 1 km section**')
+            sections=sections.merge(project['segments'][['section_id','start_km','end_km']],
+                left_on='Segment ID',right_on='section_id').drop(columns='section_id')
+            st.markdown('**Lowest calculated defect FPR in each represented property segment**')
             st.caption('This is the minimum defect FPR, not a segment reliability calculation. '
                        'Sections with unrecorded defects are not assessed; unavailable FPR values are excluded from the minimum.')
             st.dataframe(sections,hide_index=True,width='stretch')
@@ -131,6 +90,8 @@ def render_deterministic_analysis():
         st.session_state.det_selected_profile = ids[0]
     selected = st.selectbox('Selected defect — 2D/3D view',ids,key='det_selected_profile')
     row = summary.loc[summary['Profile ID'].astype(str)==selected].iloc[0]
+    defect_type=str(row['Defect type'])
+    base=segment_inputs(project,int(row['Segment ID']))
     st.markdown('**Selected defect on the pipe**')
     if result is not None:
         chosen = result.loc[result['Profile ID'].astype(str)==selected].iloc[0]
@@ -140,8 +101,8 @@ def render_deterministic_analysis():
             st.error(SEVERE_LABEL+' '+chosen['Screening reason'])
     if defect_type=='Crack':
         st.subheader('Measured depth and CorLAS burst pressure')
-        st.caption('Selected-profile preview using the current submitted material and pressure inputs. '
-                   'Use Run Deterministic Analysis to apply form edits and update the full profile results table.')
+        st.caption('Uses the saved properties of this defect’s segment. Absolute measured depths are '
+                   'preserved when assessment wall thickness differs from the inspection workbook.')
         try:
             with st.spinner('Evaluating CorLAS at the measured depths…'):
                 cells=_corlas_measured_grid(profiles[selected],base,row['Wall thickness (mm)'],

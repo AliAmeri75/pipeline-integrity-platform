@@ -3,11 +3,15 @@
 from __future__ import annotations
 
 import altair as alt
+import json
 import pandas as pd
 import streamlit as st
 
 from platform_ui import render_project_hero
 from exploration_map import render_exploration_map
+from project_editor import render_project_editor,publish_project
+from assessment_project import validate_project,assessment_geometry
+from profile_map import route_length_km
 from profile_data import (
     ProfileFormatError,
     maximum_depth_envelope,
@@ -31,14 +35,14 @@ def _read_profiles(content: bytes) -> tuple[pd.DataFrame, dict[str, pd.DataFrame
 render_project_hero(
     "Maintenance Planning (Cracks/Corrosion)",
     "Data Exploration",
-    "Upload crack or corrosion grid profiles, inspect each depth map, and extract feature size and location inputs for inspection planning.",
+    "Define the pipeline route, defects, segment properties and uncertainties once, then use the same saved dataset for preliminary assessment.",
 )
 
 st.markdown(
     """
     <div class="notice"><strong>What this module does.</strong> It reads the profile
-    sheets without changing the source workbook, plots each measured depth profile, and
-    creates one summary row per feature with its location, maximum depth, length, and width.</div>
+    sheets without changing the source workbook. Link each feature to its route chainage
+    and pipe-property segment, review its measured profile, and save the common assessment dataset.</div>
     """,
     unsafe_allow_html=True,
 )
@@ -98,16 +102,14 @@ if data_source == "Sample crack profiles":
     st.success(f"Loaded {len(summary):,} sample crack profiles.")
 else:
     st.success(f"Detected {len(summary):,} feature profiles in {source_name}.")
-defect_type = st.selectbox(
-    "Profile type",
-    ["Corrosion / metal loss", "Crack"],
-    index=1 if data_source == "Sample crack profiles" else 0,
-    help="This label is included in the downloaded size-and-location table.",
-)
+defect_type = 'Crack' if data_source == 'Sample crack profiles' else 'Corrosion / metal loss'
 summary = summary_for_defect_type(summary, defect_type)
 st.session_state["prepared_profile_workbook"] = source_content
 st.session_state["prepared_profile_source_name"] = source_name
 st.session_state["prepared_profile_defect_type"] = defect_type
+with st.expander('Define shared defects, pipe segments and uncertainties',expanded=False):
+    draft=render_project_editor(summary,profiles,source_content,data_source=='Sample crack profiles')
+summary=draft['summary']
 
 profile_ids = summary["Profile ID"].astype(str).tolist()
 selection_key='exploration_selected_profile'
@@ -115,7 +117,22 @@ if st.session_state.get(selection_key) not in profile_ids:
     st.session_state[selection_key]=profile_ids[0]
 st.subheader('Pipeline and defect locations')
 st.write('Start with the pipeline map. Click a defect marker or choose a profile below to inspect its 3D shape on the pipe and its measured depth profile.')
-render_exploration_map(summary,st.session_state[selection_key],selection_key=selection_key)
+with st.expander('Upload a pipeline centreline (GeoJSON)'):
+    route_upload=st.file_uploader('Route LineString or LineString Feature',type=['geojson','json'],key='shared_route_upload')
+    if route_upload is not None and st.button('Apply uploaded centreline'):
+        try:
+            document=json.loads(route_upload.getvalue())
+            geometry=document.get('geometry',document)
+            if geometry['type']!='LineString': raise ValueError('Use a single GeoJSON LineString.')
+            route=[[float(lat),float(lon)] for lon,lat in geometry['coordinates']]
+            if route_length_km(route)<=0: raise ValueError('The route must have positive length.')
+            st.session_state.data_exploration_map_route=route
+            st.session_state.data_exploration_map_revision=st.session_state.get('data_exploration_map_revision',0)+1
+            st.rerun()
+        except (ValueError,TypeError,KeyError) as error:
+            st.error('Route not applied: '+str(error))
+render_exploration_map(summary,st.session_state[selection_key],selection_key=selection_key,shared_project=True)
+publish_project(draft)
 selected_profile_id = st.selectbox(
     "Feature profile",
     profile_ids,
@@ -129,6 +146,17 @@ selected_row = summary.loc[
     summary["Profile ID"].astype(str) == selected_profile_id
 ].iloc[0]
 selected_profile = profiles[selected_profile_id]
+defect_type=str(selected_row['Defect type'])
+try:
+    display_summary,display_profiles=assessment_geometry(validate_project(draft))
+    selected_row=display_summary.loc[display_summary['Profile ID'].astype(str)==selected_profile_id].iloc[0]
+    selected_profile=display_profiles[selected_profile_id]
+    st.caption(f'3D preview: property segment {int(selected_row["Segment ID"])} · '
+        f'WT {selected_row["Wall thickness (mm)"]:.3f} mm · '
+        f'outside diameter {selected_row["Outside diameter (mm)"]:.1f} mm. '
+        'Measured depth in mm is unchanged; workbook %WT refers to its original inspection WT. Save drafts before analysis.')
+except (ValueError,KeyError,TypeError):
+    st.caption('Showing inspection-workbook geometry until the draft segment register is valid.')
 
 st.subheader("Selected profile")
 metric_columns = st.columns(4)
@@ -236,16 +264,5 @@ st.write(
     "Use the explored crack dimensions to estimate burst resistance pressure, "
     "failure pressure ratio (FPR), and probability of failure (POF) for each profile."
 )
-st.markdown(
-    """
-    <a class="external-cta" href="preliminary-analysis" target="_self">
-      <span class="external-cta-copy">
-        <strong>Open Preliminary Analysis</strong>
-        <span class="external-cta-detail">Calculate burst resistance pressure,
-        FPR, and POF for each crack profile.</span>
-      </span>
-      <b aria-hidden="true">→</b>
-    </a>
-    """,
-    unsafe_allow_html=True,
-)
+if st.button('Open Preliminary Analysis'):
+    st.switch_page('preliminary_analysis.py')

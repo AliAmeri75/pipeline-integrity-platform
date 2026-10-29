@@ -26,7 +26,7 @@ APP_ROUTES = (
     {
         "title": "Data Exploration",
         "path": "/data-integration",
-        "purpose": "Upload crack or corrosion profiles, visualize them, and extract sizes and locations.",
+        "purpose": "Define the shared pipeline route, measured defects, segment properties, uncertainties and consequences; inspect 2D/3D profiles.",
         "keywords": ("upload", "profile", "data", "excel", "crack size", "corrosion"),
     },
     {
@@ -110,11 +110,12 @@ Important boundaries:
   help, include one or two clickable Markdown links.
 
 Concept notes:
-- Data Exploration visualizes crack or corrosion profiles and extracts dimensions and locations.
+- Data Exploration owns the saved shared dataset: route, defect locations/profiles, property segments, means, distributions, SDs and consequences.
+- Save the shared dataset there before switching pages; downstream analyses use it without redefining pipe or defect inputs.
 - Preliminary Analysis has Deterministic Analysis, Risk & Reliability, and Consequence Assessment tabs.
 - Deterministic Analysis calculates crack resistance/FPR without Monte Carlo; click a row or FPR point to view measured 3D geometry.
 - Risk & Reliability contains POF calculations and mapped section risk. Consequence Assessment provides radius/exposure screening.
-- Corrosion geometry can be viewed, but corrosion FPR needs a corrosion resistance model; corrosion Pf can be imported.
+- Corrosion geometry can be viewed, but corrosion FPR and calculated Pf remain unavailable until a corrosion-specific model is implemented.
 - Burst resistance pressure is the model-predicted failure pressure.
 - FPR is burst resistance pressure divided by operating pressure.
 - POF is the estimated probability that the defined limit state is reached or exceeded.

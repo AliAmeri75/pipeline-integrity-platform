@@ -12,7 +12,7 @@ from consequence_model import (HazardScenario,PIR,THERMAL,RADIUS,PIR_SOURCE,THER
                                assess_consequences,consequence_risk_inputs)
 
 
-def hazard_controls(mode,natural_gas):
+def hazard_controls(mode,natural_gas,shared_geometry=False):
     title = 'Burst / rupture' if mode=='burst' else 'Leakage'
     with st.expander(title+' scenario',expanded=True):
         options = [PIR,THERMAL,RADIUS] if mode=='burst' and natural_gas else [THERMAL,RADIUS]
@@ -20,8 +20,11 @@ def hazard_controls(mode,natural_gas):
         values = dict(model=model,natural_gas=natural_gas)
         if model==PIR:
             st.caption('r(m) = 0.3048 × 0.69 × nominal diameter(in) × √MAOP(psi). Natural gas only.')
-            values['maop_psi'] = st.number_input('MAOP (psi)',1.,10000.,936.,key=f'ca_{mode}_maop')
-            values['diameter_in'] = st.number_input('Nominal diameter (in)',.1,100.,20.,key=f'ca_{mode}_diameter')
+            if shared_geometry:
+                st.caption('MAOP and nominal pipe diameter come from each saved property segment in Data Exploration.')
+            else:
+                values['maop_psi'] = st.number_input('MAOP (psi)',1.,10000.,936.,key=f'ca_{mode}_maop')
+                values['diameter_in'] = st.number_input('Nominal diameter (in)',.1,100.,20.,key=f'ca_{mode}_diameter')
         elif model==THERMAL:
             st.caption('r = √[χ × heat-release rate / (4π × heat-flux threshold)], with compatible kW and metre units. '
                        'Steady point-source approximation; supply the scenario heat-release rate. No leak-size, blowdown or dispersion solver is used.')
@@ -42,26 +45,26 @@ def hazard_controls(mode,natural_gas):
     return HazardScenario(**values)
 
 
-def render_consequence_assessment(route):
+def render_consequence_assessment(route,segment_table=None):
     st.subheader('Consequence Assessment')
     if st.session_state.pop('ca_transfer_notice',False):
-        st.success('Saved. Open the Risk & Reliability tab, then select Use Consequence Assessment under Consequence data.')
-    st.write('Estimate impact radius and people potentially exposed for a representative event in each fixed 1 km section.')
+        st.success('Saved to the shared segment register. Run Risk & Reliability again to update risk.')
+    st.write('Estimate impact radius and people potentially exposed for a representative event in each shared pipe segment.')
     st.info('Exposure is not a prediction of injuries or fatalities. This screening assumes uniform local population density '
             'inside each impact circle. The circle is centred at the section midpoint; it does not cover every possible release point.')
     natural_gas = st.selectbox('Pipeline product',['Natural gas','Other flammable product'])=='Natural gas'
     left,right = st.columns(2)
     with left:
-        burst = hazard_controls('burst',natural_gas)
+        burst = hazard_controls('burst',natural_gas,segment_table is not None)
     with right:
-        leak = hazard_controls('leak',natural_gas)
+        leak = hazard_controls('leak',natural_gas,segment_table is not None)
     st.markdown('**Population and assets by section**')
-    st.caption('Download the template and vary population or asset values by kilometre. '
+    st.caption('Download the template and vary population or asset values by shared segment. '
                'Optional overrides can be added as burst_maop_psi, burst_diameter_in, burst_heat_release_mw, '
                'leak_heat_release_mw, burst_radius_m or leak_radius_m (only the selected model uses its relevant fields). '
                'Missing values are UNKNOWN; explicit zero population means an assumed unpopulated footprint.')
     source = st.radio('Section exposure inputs',['Illustrative inputs','Upload CSV or Excel','Edit section inputs'],horizontal=True)
-    template = consequence_template(route)[['section_id','start_km','end_km']]
+    template = (segment_table if segment_table is not None else consequence_template(route))[['section_id','start_km','end_km']].copy()
     for name in ['population_density_per_km2','asset_value_per_m2','burst_fixed_cost','leak_fixed_cost']:
         template[name] = float('nan')
     st.download_button('Download population/asset template',template.to_csv(index=False),'population_asset_template.csv','text/csv')
@@ -84,6 +87,10 @@ def render_consequence_assessment(route):
         with st.expander('Review section inputs'):
             st.dataframe(data,hide_index=True,width='stretch')
     population_source = st.text_input('Population / asset data source and date',value='Illustrative assumptions')
+    if segment_table is not None:
+        lookup=segment_table.set_index('section_id')
+        data['burst_maop_psi']=data.section_id.map(lookup.maop_psi)
+        data['burst_diameter_in']=data.section_id.map(lookup.nominal_diameter_in)
     currency = st.text_input('Economic consequence currency / unit',value='CAD',key='ca_currency')
     st.caption('People in footprint = density(people/km²) × πr²/1,000,000. '
                'Exposure consequence = scenario probability × people in footprint. '
@@ -95,7 +102,7 @@ def render_consequence_assessment(route):
         try:
             if not currency.strip() or not population_source.strip():
                 raise ValueError('Specify the economic unit and population/asset data source.')
-            results = assess_consequences(route,data,burst,leak)
+            results = assess_consequences(route,data,burst,leak,segment_table=segment_table)
             results['population_asset_source'] = population_source
             results['economic_unit'] = currency
             results['event_location_basis'] = 'One representative midpoint event per section'
@@ -145,6 +152,19 @@ def render_consequence_assessment(route):
         if st.button('Use these consequences in Risk & Reliability'):
             st.session_state.modeled_consequences = dict(route=route,table=export,unit=unit,
                 source_signature=signature,measure=measure)
+            if segment_table is not None:
+                from copy import deepcopy
+                project=deepcopy(st.session_state.assessment_project)
+                values=export.set_index('section_id')
+                for column in ['burst_consequence','leak_consequence']:
+                    project['segments'][column]=project['segments'].section_id.map(values[column])
+                project['consequence_unit']=unit
+                st.session_state.assessment_project=project
+                # Keep the editor draft in step with this explicit transfer.
+                if 'project_draft' in st.session_state:
+                    st.session_state.project_draft['segments']=project['segments'].copy()
+                    st.session_state.project_draft['consequence_unit']=unit
+                    st.session_state.project_editor_revision=st.session_state.get('project_editor_revision',0)+1
             st.session_state.ca_transfer_notice = True
             st.rerun()
     with st.expander('Model references and scope'):

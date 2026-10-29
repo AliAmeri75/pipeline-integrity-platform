@@ -41,131 +41,113 @@ planning workflows without modifying the source workbook. The preferred Static M
 included here, and its button opens the
 standalone simulation directly so users do not pass through two introductions.
 
-## Preliminary Analysis
+## Unified Data Exploration → Preliminary Analysis
 
-Data Exploration presents **Pipeline and defect locations** before the selected
-profile figures. Click a defect marker or choose **Feature profile** to update
-the highlighted marker, 3D measured defect on the pipe and linked 2D/3D depth views.
-The pipe view appears first among the profile figures. Marker selection matches
-the feature tooltip (including co-located profiles), while old click events do
-not override a subsequent dropdown choice. Route drawing and joint grouping are
-unchanged.
+**Data Exploration is the single input workspace.** Define the centreline (draw
+it or upload a GeoJSON LineString), defect chainages measured from the route
+origin, property segments, nominal pipe/material/load values, distributions and
+standard deviations. Click a map marker or select a feature to inspect the same
+measured 2D/3D profile. Multiple defects in one nominal 12 m interval retain the
+same joint ID; a property segment is a different concept from a physical joint.
 
-Under **Maintenance Planning (Cracks/Corrosion) → Preliminary Analysis**, switch
-between **Deterministic Analysis**, **Risk & Reliability** and **Consequence Assessment**.
-There is no separate Reliability Analysis sidebar entry.
+Open **Define shared defects, pipe segments and uncertainties** to edit the
+registers. Segment boundaries can have any positive length and arbitrary unique
+positive integer IDs. They must cover the route continuously, without gaps or
+overlaps. Each parameter has a distribution and absolute SD per segment;
+pipe/material/load means come from the segment register, while defect-size means
+come from measured feature dimensions. Choose Deterministic, Normal, Lognormal
+or Gumbel. Synchronize uncertainty rows after adding or changing segment IDs.
 
-The deterministic tab calculates resistance and FPR for each measured crack
-without Monte Carlo, POF controls or probability outputs. FPR is unadjusted burst
-resistance divided by operating pressure. Click a result-table row or FPR plot
-point to select the defect and view its measured geometry on a 3D pipe, using
-the same renderer as Data Exploration. A linked measured 2D/3D view is also
-available. The lowest calculated FPR is summarized for each represented nominal
-1 km section; this is not a segment reliability calculation or proof of safety.
-No route endpoint is inferred from the profile workbook. Unsupported corrosion
-resistance remains unavailable; corrosion geometry can still be visualized.
+Press **Save shared dataset for all analyses** before opening Preliminary
+Analysis. Downstream pages do not request another route, defect upload or
+independent set of pipe properties. Unsaved drafts are identified; analysis
+signatures invalidate old results after saved input changes. Use in-app
+navigation to retain the Streamlit session. Current storage is session-only;
+download the registers and centreline for your records. External independent
+planning applications are not silently synchronized across deployments.
 
-The selected crack profile immediately shows a
-measured-depth heatmap beside a CorLAS burst-pressure heatmap on the same axial
-and circumferential coordinates. Each valid measured depth is evaluated with
-the **full profile length held fixed**, its pipe geometry and the entered material
-properties. This is a depth-sensitivity screening map, not independent tiny
-cracks or a spatial crack-interaction/equivalent-area calculation. Resistance is
-unadjusted CorLAS pressure in psi; point FPR is that pressure divided by operating
-pressure. Cards show the minimum calculated point FPR, its burst pressure and the
-number of evaluated cells. Crosses locate the minimum on both maps. Selecting
-another profile updates the cards and heatmaps; results are cached by profile
-and inputs. Point CSV downloads include measured depth, coordinates, resistance,
-FPR, profile length, pressure and calculation status.
-The preview uses default or submitted form inputs. Press Run Deterministic Analysis
-to apply form edits and calculate the complete profile and section result tables.
+### Common demonstration dataset
 
-Zero depths are not treated as cracks. Missing/negative depths, through-wall
-depths and failed model evaluations receive no fabricated resistance or FPR;
-the minimum excludes them and the app flags incomplete coverage. Through-wall
-measurements require separate leakage assessment. Corrosion still requires its
-own resistance model and does not receive a crack-model heatmap.
+The fictional bent route near Edmonton is exactly 10 km, with the same measured
+synthetic shapes SYN-001, SYN-002 and SYN-003 at 0.5, 4.5 and 8.5 km. The source
+sample workbook uses these same chainages. Initial property segments are
+non-overlapping 1 km intervals. Geometry at each defect is seeded from its
+profile metadata. Other segment properties, uncertainty settings and conditional
+losses are illustrative inputs, not validated asset or geographical information.
+SYN-003 retains its 360 mm length and 65% inspection-WT maximum depth; its
+default FPR is approximately 1.079.
 
-In the **Risk & Reliability** tab, calculate
-feature Pf and map fixed 1 km sections with consequences and risk, without running any scheduling
-study. The page includes a fictional 100 km Alberta route and crack CSV, route
-drawing/GeoJSON upload, CSV defect input, and prepared profiles from Data Exploration.
-Enter feature positions as km from the selected route's first point. Shared pipe
-geometry and material inputs must match the entered profiles.
+### Deterministic Analysis
 
-The crack-only CorLAS screening mode calculates Pf for the specified geometry and
-loading condition. It is a snapshot, not an annual probability: it includes no
-growth, initiation, repair, inspections, or cost optimization. The sidebar offers
-collapsible Pipe Geometry, Operating Pressure, Material Properties, Resistance
-Model Uncertainty, Crack Sizing and POF Simulation groups. Each parameter card
-keeps distribution, mean and SD together; crack means come from each defect row.
-Choose Deterministic, Normal, Lognormal or Gumbel distributions. Defaults mirror
-the fixed-inspection model: diameter 20 in deterministic; WT 6.35/0.6 mm Normal;
-pressure 936/20.0304 psi Gumbel; yield strength 57200/2002 psi Normal; ultimate
-strength 73920/2587.2 psi Normal; E 210/8.4 GPa Normal; Charpy mean 85 and SD
-`0.0223*85^1.46` Lognormal; model factor 1.27/0.21 Normal; crack depth/length SDs
-0.74/15.6 mm Normal. These are research defaults, not calibration for your asset.
+The deterministic workflow uses each defect's assigned segment geometry,
+material properties and nominal operating pressure. FPR is explicitly
+**unadjusted CorLAS burst resistance / entered operating pressure**; it is not
+automatically MAOP-based or a regulatory acceptance measure. It does not apply
+the stochastic model factor θ. Select a result row or FPR plot point to view the
+same feature in 3D. Segment summaries retain the saved arbitrary boundaries.
 
-All entered means and SDs are arithmetic moments. Nonpositive random values are
-resampled; this truncation can change realized moments. Lognormal/Gumbel moments
-are transformed to their distribution parameters. Strength ordering and a positive
-pipe bore are enforced by resampling incompatible joint draws. Pipe, material and
-load samples are shared within each joint; crack dimensions are independent.
-Joints remain independent in the section survival aggregation. Diameter can be
-made uncertain, but its default SD remains zero because the scheduling model fixes
-it. Export JSON settings for reproducibility; reset restores the reference values.
-The active engine is `probabilistic_reliability_model.py`.
+Red circles mark the user-selected screening rule **FPR < 1.1 OR depth > 0.5 WT**,
+with “Severe → immediate action!” and the reason in the table and exports.
+This user-configured screening label is not a code-compliance or approved
+repair decision.
 
-Leakage means sampled depth ≥ sampled
-WT; burst applies to non-through-wall samples and compares pressure against
-CorLAS resistance. Shared pipe/material/pressure draws capture dependence
-between cracks in one joint; their failures are combined sample by sample.
+The selected crack shows measured-depth and CorLAS burst-pressure heatmaps.
+Each valid measured depth uses the full profile length and the same assigned
+segment inputs. This is a depth-sensitivity screening map, not a profile
+interaction calculation or independent cell-sized cracks. Original measured
+depths in mm are retained even if assessment WT differs from inspection WT;
+display %WT grids are adapted on a copy, not by modifying the source profiles.
+Minimum FPR and resistance cards appear immediately. Missing/negative,
+through-wall or unsupported measurements do not receive fabricated FPR.
+Corrosion geometry is supported, but requires a separately implemented and
+validated corrosion resistance model before FPR or calculated Pf is available.
 
-For corrosion, or annual probabilities from another model, use **Import
-crack/corrosion Pf** with `feature_id`, `defect_type` (Crack/Corrosion),
-`chainage_km`, `burst_pf`, and `leak_pf`. State the probability basis and period.
-No corrosion failure model is assumed. Imported feature events are assumed
-independent, including within a joint; use caution if your source model includes
-dependence. Do not mix periods or probability definitions in one upload.
+### Risk & Reliability
 
-Sections are fixed from the route start: [0,1), [1,2), and onward. The last
-section can be shorter; a feature at the route endpoint belongs to the final
-section. Each feature belongs to exactly one section by chainage. When a joint
-crosses a section boundary, only that section's feature failure samples contribute
-to its Pf. This retains within-joint dependence without duplicating a defect.
-Joint events within each section use the independent series combination
-`1 - product(1 - joint Pf)`.
+Only simulation settings and map screening thresholds are chosen here. All
+asset and uncertainty inputs come from the saved shared register.
+The active Monte Carlo engine is `probabilistic_reliability_model.py`, called by
+`assessment_project.reliability_project`. It applies segment-specific parameter
+specifications to each defect. Arithmetic means/SDs are converted for lognormal
+and Gumbel draws; nonpositive draws and incompatible geometry/strength ordering
+are resampled, which can alter realized moments.
 
-Download a route-specific consequence CSV template or upload CSV/Excel containing
-`section_id`, `burst_consequence`, `leak_consequence`; optional `start_km`/`end_km`
-must match the current route. Every section must have exactly one row. Values must
-be finite and nonnegative; zero explicitly means no consequence in the selected
-metric, while missing values are rejected. Enter conditional section-level loss
-if a mode occurs, not probability-weighted cost. Both modes must share a common
-unit (e.g. CAD) and a consistent valuation basis. Sample costs are invented for
-demonstration and are not location-specific estimates.
+Pipe/material/load draws are shared within each joint–segment group; defect-size
+draws are independent. A property boundary through a nominal joint splits the
+sampling group without creating a new physical joint ID. Different groups are
+assumed independent. Section Pf uses `1 - product(1 - group Pf)`; defects are
+assigned once by chainage to [start,end), with the route endpoint included in the
+last segment. This assumption is explicit, not a calibrated spatial dependence
+model.
 
-`burst_risk = burst_pf * burst_consequence`, likewise for leakage, and total risk
-is their sum. Consequences must be additive without double counting common losses.
-Risk is expected loss over the stated probability basis: CAD/year only for
-imported annual Pf, otherwise CAD per stated assessment. No annual claim is made
-for the snapshot crack model.
+Leakage is sampled depth ≥ sampled WT. Burst is pressure ≥ θ × CorLAS
+resistance for a non-through-wall sample. These are **assessment-condition**
+probabilities, not annual Pf: no time evolution, initiation, inspection, repair
+or optimization is included. The former 100 km/independent defect-source example
+is removed from the interface. Corrosion is not silently evaluated with CorLAS.
 
-Three step plots display POF, consequence and risk against route distance.
-The map selector switches POF/consequence/risk and burst/leakage (or total risk).
-A numeric green-yellow-red legend scales from zero to the selected Pf limit for
-POF, and to the displayed maximum for consequences/risk. The latter are relative
-colours, not regulatory risk categories. The separate `pof_category`
-column uses the selected burst/leakage screening limits. Default limits of
-0.001/0.01 do not claim CSA compliance. Unknown defects are not included; green
-does not establish overall safety. Monte Carlo zeros are not proof of zero Pf.
-Downloads carry units, probability basis and period. Input changes invalidate
-saved results; display switches retain them without rerunning Monte Carlo.
+Consequences are conditional segment-event losses in one common unit, not
+already probability-weighted losses. Risk = burst Pf × burst consequence +
+leakage Pf × leakage consequence. Missing consequences remain UNKNOWN/NaN,
+not zero; POF may still be assessed. This screening metric is not an expected
+multiple-incident count, and loss definitions must avoid double counting.
+
+POF, consequence and risk are plotted against the same saved segment boundaries.
+The map switches between them. POF red corresponds to a user-selected screening
+limit; consequence/risk scales are relative, and grey means unknown.
+Defaults 0.001 burst / 0.01 leakage do not claim CSA compliance. Unlisted threats
+are not modeled; no listed defects means zero modeled contribution, not proof of
+safety. Zero observed failures do not demonstrate zero Pf; the approximate 95%
+upper bound at zero failures is 3/N. Downloads retain the dataset signature and
+probability basis.
 
 ### Consequence Assessment workspace
 
-Open **Preliminary Analysis → Consequence Assessment** after selecting a route
-in the Risk & Reliability tab.
+Open **Preliminary Analysis → Consequence Assessment** after saving the shared
+route and segment register in Data Exploration. MAOP and nominal diameter for
+PIR screening come from that register; they are not re-entered in this tab.
+The explicit transfer button writes assessed losses and their unit back to the
+same shared segment register. Re-run Risk & Reliability after transferring them.
 Choose separate burst and leakage scenarios:
 
 - **Natural-gas PIR**, burst only: `r_m = 0.3048 * 0.69 * nominal_diameter_in * sqrt(MAOP_psi)`.

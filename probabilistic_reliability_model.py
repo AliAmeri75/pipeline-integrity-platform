@@ -34,8 +34,8 @@ def positive_samples(rng,mean,std,distribution,size):
     raise ValueError('Too many nonphysical samples; revise the probability inputs.')
 
 
-def calculate_crack_reliability(features,route,joint_length_m,inputs,uncertainty,samples=1000,seed=7,*,variable_specs=None):
-    data=validate_features(features,route,joint_length_m)
+def calculate_crack_reliability(features,route,joint_length_m,inputs,uncertainty,samples=1000,seed=7,*,variable_specs=None,section_table=None,specs_by_segment=None):
+    data=validate_features(features,route,joint_length_m,section_table)
     if not data.defect_type.eq('Crack').all():
         raise ValueError('CorLAS calculation supports cracks only. Import corrosion Pf instead.')
     if not 100<=samples<=10000:
@@ -64,7 +64,11 @@ def calculate_crack_reliability(features,route,joint_length_m,inputs,uncertainty
     data['burst_failures'],data['leak_failures']=0,0
     data['mc_samples']=samples
     joints,section_joints=[],[]
-    for number,group in data.groupby('joint_number',sort=True):
+    grouping=['joint_number','section_id'] if specs_by_segment is not None else 'joint_number'
+    for group_key,group in data.groupby(grouping,sort=True):
+        number=group_key[0] if isinstance(group_key,tuple) else group_key
+        if specs_by_segment is not None:
+            specs=specs_by_segment[int(group.section_id.iloc[0])]
         shared={name:draw(name,samples) for name in SHARED}
         # Condition on valid strength ordering and a positive pipe bore; no clipping.
         for _ in range(100):
@@ -98,7 +102,7 @@ def calculate_crack_reliability(features,route,joint_length_m,inputs,uncertainty
             masks=section_masks.setdefault(int(row.section_id),[np.zeros(samples,dtype=bool),np.zeros(samples,dtype=bool)])
             masks[0]|=burst
             masks[1]|=leak
-        joints.append(dict(joint_number=int(number),burst_pf=joint_burst.mean(),leak_pf=joint_leak.mean()))
+        joints.append(dict(joint_number=int(number),section_id=int(group.section_id.iloc[0]),burst_pf=joint_burst.mean(),leak_pf=joint_leak.mean()))
         for section_id,(b,l) in section_masks.items():
             section_joints.append(dict(section_id=section_id,joint_number=int(number),burst_pf=float(b.mean()),leak_pf=float(l.mean())))
     data.attrs['section_joint_pfs']=section_joints

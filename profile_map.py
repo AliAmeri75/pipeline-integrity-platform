@@ -227,7 +227,7 @@ def profile_from_map_click(mapped: pd.DataFrame, event: Mapping[str, object]) ->
 def render_profile_location_map(
     summary: pd.DataFrame,
     selected_profile_id: str,
-    *, selection_key: str | None = None,
+    *, selection_key: str | None = None, shared_project: bool = False,
 ) -> pd.DataFrame:
     """Render an editable pipeline route with profile locations and joint IDs."""
 
@@ -250,8 +250,12 @@ def render_profile_location_map(
     )
 
     action_1, action_2, action_3 = st.columns([1, 1, 2])
-    if action_1.button("Load Edmonton sample route", use_container_width=True):
-        st.session_state[route_key] = copy.deepcopy(EDMONTON_SAMPLE_ROUTE)
+    if action_1.button("Load 10 km sample route" if shared_project else "Load Edmonton sample route", use_container_width=True):
+        if shared_project:
+            from assessment_project import sample_route
+            st.session_state[route_key] = sample_route()
+        else:
+            st.session_state[route_key] = copy.deepcopy(EDMONTON_SAMPLE_ROUTE)
         st.session_state[revision_key] += 1
         st.rerun()
     if action_2.button("Clear pipeline route", use_container_width=True):
@@ -267,6 +271,7 @@ def render_profile_location_map(
         route_start_chainage_m = st.number_input(
             "Chainage at the start of the drawn route (m)",
             value=0.0,
+            disabled=shared_project,
             step=100.0,
             help=(
                 "Use 0 when the drawn line begins at the pipeline origin. If the map "
@@ -278,8 +283,9 @@ def render_profile_location_map(
             "Nominal pipe-joint length (m)",
             min_value=1.0,
             max_value=100.0,
-            value=12.0,
+            value=None if shared_project else 12.0,
             step=1.0,
+            key='project_joint_length' if shared_project else None,
             help=(
                 "Profiles within the same interval receive the same joint ID. "
                 "Use construction records when the real joint boundaries are available."

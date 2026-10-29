@@ -25,7 +25,7 @@ def demo_data():
     return route, features
 
 
-def validate_features(features, route, joint_length_m):
+def validate_features(features, route, joint_length_m, section_table=None):
     required = {'feature_id','defect_type','chainage_km'}
     if not required.issubset(features.columns) or features.empty:
         raise ValueError('Provide feature_id, defect_type and chainage_km for at least one feature.')
@@ -44,6 +44,12 @@ def validate_features(features, route, joint_length_m):
     count = math.ceil(length*1000/joint_length_m)
     data['joint_number'] = np.minimum(np.floor(chainage*1000/joint_length_m).astype(int)+1,count)
     data['section_id'] = np.minimum(np.floor(chainage).astype(int)+1,math.ceil(length))
+    if section_table is not None:
+        # The shared project validates continuous coverage before calling here.
+        starts = section_table.start_km.to_numpy(dtype=float)
+        positions = np.searchsorted(starts, chainage.to_numpy(), side='right')-1
+        positions = np.clip(positions, 0, len(section_table)-1)
+        data['section_id'] = section_table.section_id.to_numpy()[positions]
     return data
 
 

@@ -67,8 +67,8 @@ def scenario_radius(scenario, mode):
     raise ValueError('Choose a supported hazard-radius model.')
 
 
-def assess_consequences(route, section_inputs, burst, leak):
-    """Conditional exposure/cost for one representative midpoint event per km.
+def assess_consequences(route, section_inputs, burst, leak, segment_table=None):
+    """Conditional exposure/cost for one representative midpoint event per segment.
 
     Ignition probability weights the selected ignited scenario conditional on a
     mode failure. Fixed incident response cost is not ignition-weighted. Uniform
@@ -76,7 +76,7 @@ def assess_consequences(route, section_inputs, burst, leak):
     its pipeline section. Section exposure counts must NOT be summed as unique
     residents. All inputs and model/source metadata are preserved in exports.
     """
-    expected = consequence_template(route)[['section_id','start_km','end_km']]
+    expected = (segment_table if segment_table is not None else consequence_template(route))[['section_id','start_km','end_km']]
     data = section_inputs.copy()
     required = {'section_id','population_density_per_km2','asset_value_per_m2','burst_fixed_cost','leak_fixed_cost'}
     if not required.issubset(data):
