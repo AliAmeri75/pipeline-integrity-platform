@@ -66,11 +66,30 @@ geometry and material inputs must match the entered profiles.
 
 The crack-only CorLAS screening mode calculates Pf for the specified geometry and
 loading condition. It is a snapshot, not an annual probability: it includes no
-growth, initiation, repair, inspections, or cost optimization. Positive truncated
-normal sampling is used for crack depth/length, wall thickness, pressure and model
-factor. Other material inputs are fixed. Leakage means sampled depth ≥ sampled
+growth, initiation, repair, inspections, or cost optimization. The sidebar offers
+collapsible Pipe Geometry, Operating Pressure, Material Properties, Resistance
+Model Uncertainty, Crack Sizing and POF Simulation groups. Each parameter card
+keeps distribution, mean and SD together; crack means come from each defect row.
+Choose Deterministic, Normal, Lognormal or Gumbel distributions. Defaults mirror
+the fixed-inspection model: diameter 20 in deterministic; WT 6.35/0.6 mm Normal;
+pressure 936/20.0304 psi Gumbel; yield strength 57200/2002 psi Normal; ultimate
+strength 73920/2587.2 psi Normal; E 210/8.4 GPa Normal; Charpy mean 85 and SD
+`0.0223*85^1.46` Lognormal; model factor 1.27/0.21 Normal; crack depth/length SDs
+0.74/15.6 mm Normal. These are research defaults, not calibration for your asset.
+
+All entered means and SDs are arithmetic moments. Nonpositive random values are
+resampled; this truncation can change realized moments. Lognormal/Gumbel moments
+are transformed to their distribution parameters. Strength ordering and a positive
+pipe bore are enforced by resampling incompatible joint draws. Pipe, material and
+load samples are shared within each joint; crack dimensions are independent.
+Joints remain independent in the section survival aggregation. Diameter can be
+made uncertain, but its default SD remains zero because the scheduling model fixes
+it. Export JSON settings for reproducibility; reset restores the reference values.
+The active engine is `probabilistic_reliability_model.py`.
+
+Leakage means sampled depth ≥ sampled
 WT; burst applies to non-through-wall samples and compares pressure against
-CorLAS resistance. Shared WT, pressure and model-factor draws capture dependence
+CorLAS resistance. Shared pipe/material/pressure draws capture dependence
 between cracks in one joint; their failures are combined sample by sample.
 
 For corrosion, or annual probabilities from another model, use **Import

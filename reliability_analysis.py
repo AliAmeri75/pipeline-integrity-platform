@@ -15,8 +15,9 @@ from education.pof_model import POFInputs, UncertaintyInputs
 from platform_ui import render_project_hero
 from profile_map import route_length_km, point_at_chainage, latest_route_from_drawings
 from profile_data import parse_profile_workbook
-from reliability_model import (demo_data, calculate_crack_reliability,
-                               import_feature_reliability, consequence_template, fixed_section_risk)
+from reliability_model import (demo_data, import_feature_reliability, consequence_template, fixed_section_risk)
+from probabilistic_reliability_model import calculate_crack_reliability
+from reliability_inputs import render_reliability_inputs
 from consequence_assessment import render_consequence_assessment
 
 
@@ -208,33 +209,36 @@ def render_reliability_analysis(*, embedded=False):
         with st.expander('Review consequence values'):
             st.dataframe(consequences,hide_index=True,width='stretch')
     base,uncertainty,samples,seed = POFInputs(),UncertaintyInputs(),1000,7
+    variable_specs = None
     if mode == 'Calculate crack Pf':
-        with st.expander('Pipe, pressure, material and uncertainty',expanded=True):
-            a,b,c = st.columns(3)
-            diameter = a.number_input('Outside diameter (in)',1.,100.,20.)
-            wall = b.number_input('Wall thickness (mm)',.1,100.,6.35)
-            pressure = c.number_input('Operating pressure (psi)',1.,10000.,936.)
-            yield_strength = a.number_input('Yield strength (psi)',1000.,200000.,57200.)
-            ultimate = b.number_input('Ultimate strength (psi)',1000.,250000.,73920.)
-            charpy = c.number_input('Charpy energy (model units)',1.,500.,85.)
-            elastic = a.number_input('Elastic modulus (GPa)',1.,500.,210.)
-            factor = b.number_input('Model factor mean',.01,10.,1.27)
-            depth_sd = c.number_input('Depth SD (mm)',0.,20.,.74)
-            length_sd = a.number_input('Length SD (mm)',0.,500.,15.6)
-            wall_sd = b.number_input('Wall thickness SD (mm)',0.,20.,.6)
-            pressure_sd = c.number_input('Pressure SD (psi)',0.,1000.,20.)
-            factor_sd = a.number_input('Model factor SD',0.,5.,.21)
-            samples = b.number_input('Samples per feature',100,10000,1000,100)
-            seed = c.number_input('Random seed',0,1000000,7)
-            base = POFInputs(diameter_in=diameter,wall_thickness_mm=wall,
-                flaw_depth_mm=min(1.,wall/2),operating_pressure_psi=pressure,yield_strength_psi=yield_strength,
-                ultimate_strength_psi=ultimate,charpy_energy=charpy,elastic_modulus_gpa=elastic,model_factor=factor)
-            uncertainty = UncertaintyInputs(length_sd,depth_sd,wall_sd,pressure_sd,factor_sd)
-            st.caption('Positive truncated normal distributions for depth, length, WT, pressure and model factor. '
-                       'Other material properties are fixed. WT, pressure and model factor are shared within a joint. '
-                       'Burst is assessed for non-through-wall samples; depth ≥ WT is leakage.')
+        variable_specs,samples,seed = render_reliability_inputs()
+        if samples is None or seed is None or any(
+            spec.get('distribution') is None or spec['std'] is None or
+            ('mean' in spec and spec['mean'] is None) for spec in variable_specs.values()):
+            st.info('Complete the POF input fields in the sidebar before running the calculation.')
+            return
+        means = {name:spec['mean'] for name,spec in variable_specs.items() if 'mean' in spec}
+        base = POFInputs(**means,flaw_depth_mm=min(1.,means['wall_thickness_mm']/2))
+        uncertainty = UncertaintyInputs(
+            flaw_length_mm=variable_specs['flaw_length_mm']['std'],
+            flaw_depth_mm=variable_specs['flaw_depth_mm']['std'],
+            wall_thickness_mm=variable_specs['wall_thickness_mm']['std'],
+            operating_pressure_psi=variable_specs['operating_pressure_psi']['std'],
+            model_factor=variable_specs['model_factor']['std'])
+        st.info('Define pipe geometry, pressure, material properties and distributions in the left sidebar under Risk & Reliability Inputs.')
+        st.caption('Defaults follow the fixed-inspection model. All pipe/material/load samples are shared within a joint. '
+                   'Nonpositive samples are resampled; strength order and a positive pipe bore are enforced. '
+                   'Crack dimensions are independent, with means from the defect table. No growth or inspection uncertainty is added.')
+        settings = dict(parameters=variable_specs,samples=samples,seed=seed,
+                        basis='Assessment-condition Pf; no growth or inspection model')
+        with st.expander('Review active POF distributions'):
+            st.dataframe(pd.DataFrame([dict(parameter=name,distribution=spec['distribution'],
+                mean=spec.get('mean','From each defect'),standard_deviation=spec['std'])
+                for name,spec in variable_specs.items()]).astype({'mean':str}),hide_index=True,width='stretch')
+        st.download_button('Download POF input settings',json.dumps(settings,indent=2),
+                           'pof_input_settings.json','application/json')
     signature = hashlib.sha256(repr((route,features.to_csv(index=False),mode,basis,period,joint_length,
-                                   burst_limit,leak_limit,base,uncertainty,samples,seed,
+                                   burst_limit,leak_limit,base,uncertainty,samples,seed,variable_specs,
                                    consequences.to_csv(index=False),unit,
                                    modeled['source_signature'] if consequence_source=='Use Consequence Assessment' else consequence_source)).encode()).hexdigest()
     if st.button('Run Reliability Analysis',type='primary'):
@@ -249,7 +253,7 @@ def render_reliability_analysis(*, embedded=False):
                 raise ValueError('Fill both consequence values for every section. Missing values are UNKNOWN, not zero.')
             with st.spinner('Calculating failure probabilities and risk in fixed 1 km sections…'):
                 if mode == 'Calculate crack Pf':
-                    assessed,joints = calculate_crack_reliability(features,route,joint_length,base,uncertainty,int(samples),int(seed))
+                    assessed,joints = calculate_crack_reliability(features,route,joint_length,base,uncertainty,int(samples),int(seed),variable_specs=variable_specs)
                 else:
                     assessed,joints = import_feature_reliability(features,route,joint_length)
                 sections = fixed_section_risk(route,assessed,consequences,burst_limit,leak_limit)
