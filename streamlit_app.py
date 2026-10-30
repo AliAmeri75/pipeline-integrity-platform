@@ -68,6 +68,12 @@ journal_two = st.Page(
     icon=":material/monitoring:",
     url_path="reliability-voi",
 )
+geohazard_exploration = st.Page(
+    "geohazard_exploration.py",
+    title="Data Exploration",
+    icon=":material/map:",
+    url_path="geohazard-data-exploration",
+)
 geohazard_planning = st.Page(
     "geohazard_planning.py",
     title="Planning for Geohazards",
@@ -99,7 +105,10 @@ navigation = st.navigation(
             rl_planning,
             journal_two,
         ],
-        "Maintenance Planning (Geohazards)": [geohazard_planning],
+        "Maintenance Planning (Geohazards)": [
+            geohazard_exploration,
+            geohazard_planning,
+        ],
         "Research Resources": [publications],
         "Participate": [teaching_pilot],
     }
