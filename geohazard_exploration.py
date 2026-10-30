@@ -37,11 +37,13 @@ REQUIRED_COLUMNS = {
 
 
 @st.cache_data(show_spinner=False)
-def sample_ground_movement_csv() -> bytes:
-    """Return a synthetic survey near the shared Edmonton demonstration route."""
+def sample_ground_movement_csv(
+    route_coordinates: tuple[tuple[float, float], ...]
+) -> bytes:
+    """Return a synthetic survey near the currently shared demonstration route."""
 
     rng = np.random.default_rng(24)
-    route = EDMONTON_SAMPLE_ROUTE
+    route = [list(point) for point in route_coordinates]
     length_km = route_length_km(route)
     records: list[dict[str, float | str]] = []
     for index, fraction in enumerate(np.linspace(0.0, 1.0, 90), start=1):
@@ -296,6 +298,11 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
+if ROUTE_KEY not in st.session_state:
+    st.session_state[ROUTE_KEY] = [point[:] for point in EDMONTON_SAMPLE_ROUTE]
+if ROUTE_REVISION_KEY not in st.session_state:
+    st.session_state[ROUTE_REVISION_KEY] = 0
+
 st.subheader("1. Choose ground-movement data")
 source = st.radio(
     "Ground-movement source",
@@ -303,7 +310,12 @@ source = st.radio(
     horizontal=True,
     label_visibility="collapsed",
 )
-sample_content = sample_ground_movement_csv()
+sample_route = st.session_state[ROUTE_KEY]
+if len(sample_route) < 2:
+    sample_route = EDMONTON_SAMPLE_ROUTE
+sample_content = sample_ground_movement_csv(
+    tuple((float(point[0]), float(point[1])) for point in sample_route)
+)
 if source == "Sample ground-movement survey":
     content = sample_content
     filename = "sample_ground_movement.csv"
@@ -344,11 +356,6 @@ except (ValueError, pd.errors.ParserError) as error:
     st.stop()
 
 st.subheader("2. Confirm the pipeline route")
-if ROUTE_KEY not in st.session_state:
-    st.session_state[ROUTE_KEY] = [point[:] for point in EDMONTON_SAMPLE_ROUTE]
-if ROUTE_REVISION_KEY not in st.session_state:
-    st.session_state[ROUTE_REVISION_KEY] = 0
-
 route_actions = st.columns([1, 1, 2])
 if route_actions[0].button("Load Edmonton sample route", use_container_width=True):
     st.session_state[ROUTE_KEY] = [point[:] for point in EDMONTON_SAMPLE_ROUTE]
