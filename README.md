@@ -251,8 +251,6 @@ frame restriction.
 - [`content/DOCUMENTATION.md`](content/DOCUMENTATION.md) controls application
   links, documentation, and editing guidance.
 
-## Existing applications
-
 ## Preliminary Analysis workspaces
 
 Select **Crack**, **Corrosion**, or **Dent** at the top of Preliminary Analysis. Each has Deterministic Analysis, Risk & Reliability, and Consequence Assessment. They share the saved Data Exploration asset register; dents have a separate displacement/curvature register there. Crack uses the existing CorLAS workflow. Corrosion starts with isolated longitudinal metal-loss pressure screening. Dent starts with geometric strain-criterion screening; its probabilities and expected-consequence proxy are not rupture/leakage or annual failure risks. Physical interactions among defect types are not implemented.
