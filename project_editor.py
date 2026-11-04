@@ -40,7 +40,7 @@ def render_project_editor(summary,profiles,content,is_sample):
              'and uncertainty assumptions in Deterministic Analysis and Risk & Reliability.')
     st.caption('Chainage is distance from the route origin. Property segments may have any positive length; '
         'they must cover the entire route without gaps or overlaps. Segment IDs are not joint IDs.')
-    tabs=st.tabs(['Defect register','Pipe segments & consequences','Uncertainties'])
+    tabs=st.tabs(['Defect register','Pipe segments & consequences','Uncertainties','Dent register'])
     with tabs[0]:
         st.caption('Edit defect chainage and type; measured profiles and dimensions remain unchanged. '
             'The sample places three profiles at 0.5, 4.5 and 8.5 km on one fictional 10 km pipe: '
@@ -105,6 +105,14 @@ def render_project_editor(summary,profiles,content,is_sample):
             edited=edited.drop(columns='Mean / source')
             draft['uncertainties']=pd.concat([draft['uncertainties'].loc[~mask],edited],ignore_index=True)
         st.caption('After changing segment IDs, synchronize the uncertainty rows. Existing settings for unchanged IDs are retained.')
+    with tabs[3]:
+        from dent_assessment_model import empty_dent_register
+        st.caption('Dent depth is inward deformation, not metal loss. Enter measured dent geometry separately. '
+            'Dimensions and signed curvature radii are in mm; chainage is metres. '
+            'Radii follow PHMSA Mechanical Damage (2009), section 7.2.3. '
+            'Do not reinterpret crack/corrosion grids as dent measurements. Combined defects are flagged, not assessed.')
+        draft['dent_register']=st.data_editor(draft.get('dent_register',empty_dent_register()),
+            num_rows='dynamic',hide_index=True,width='stretch',key='project_dent_register_'+token)
     draft['profiles']=profiles
     return draft
 
@@ -135,5 +143,8 @@ def publish_project(draft):
         'segment_uncertainties.csv','text/csv')
     st.download_button('Download active defect register',saved['summary'].to_csv(index=False),
         'pipeline_defects.csv','text/csv')
+    if 'dent_register' in saved:
+        st.download_button('Download active dent register',saved['dent_register'].to_csv(index=False),
+            'pipeline_dents.csv','text/csv')
     st.download_button('Download active route GeoJSON',json.dumps(dict(type='LineString',
         coordinates=[[lon,lat] for lat,lon in saved['route']])), 'pipeline_route.geojson','application/geo+json')

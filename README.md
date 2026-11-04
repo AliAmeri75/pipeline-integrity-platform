@@ -253,6 +253,14 @@ frame restriction.
 
 ## Existing applications
 
+## Preliminary Analysis workspaces
+
+Select **Crack**, **Corrosion**, or **Dent** at the top of Preliminary Analysis. Each has Deterministic Analysis, Risk & Reliability, and Consequence Assessment. They share the saved Data Exploration asset register; dents have a separate displacement/curvature register there. Crack uses the existing CorLAS workflow. Corrosion starts with isolated longitudinal metal-loss pressure screening. Dent starts with geometric strain-criterion screening; its probabilities and expected-consequence proxy are not rupture/leakage or annual failure risks. Physical interactions among defect types are not implemented.
+
+See [model equations, applicability, uncertainty assumptions and replacement instructions](docs/threat_assessment_models.md). The interfaces never substitute a crack model for another defect type.
+
+## Related planning applications
+
 - <https://github.com/AliAmeri75/pipeline-inspection-app>
 - <https://github.com/AliAmeri75/pipeline-rl-planning>
 - <https://github.com/AliAmeri75/pipeline_reliability_J2>

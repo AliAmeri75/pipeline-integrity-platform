@@ -150,6 +150,9 @@ def validate_project(project):
         raise ValueError('Choose a supported distribution and a finite nonnegative SD for each parameter.')
     uncertainty=uncertainty.sort_values(['section_id','parameter']).reset_index(drop=True)
     p.update(segments=segments,summary=summary,uncertainties=uncertainty)
+    if 'dent_register' in p:
+        from dent_assessment_model import validate_dents
+        p['dent_register']=validate_dents(p['dent_register'],p)
     return p
 
 
@@ -158,7 +161,8 @@ def project_signature(project):
     return hashlib.sha256(repr((project['route'],project['joint_length_m'],
         project['summary'].to_csv(index=False),project['segments'].to_csv(index=False),
         project['uncertainties'].to_csv(index=False),project['consequence_unit'],
-        [(name,grid.to_csv()) for name,grid in project['profiles'].items()])).encode()).hexdigest()
+        [(name,grid.to_csv()) for name,grid in project['profiles'].items()],
+        project['dent_register'].to_csv(index=False) if 'dent_register' in project else None)).encode()).hexdigest()
 
 
 def segment_inputs(project, segment_id):

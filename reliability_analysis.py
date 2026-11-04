@@ -93,9 +93,9 @@ def profile_figure(sections, columns, title, y_label):
     return figure
 
 
-def render_reliability_analysis(*, embedded=False):
+def render_reliability_analysis(*, embedded=False, project=None):
     from shared_reliability_ui import render_shared_reliability
-    render_shared_reliability(embedded=embedded)
+    render_shared_reliability(embedded=embedded,project=project)
 
 if __name__ == '__main__':
     render_reliability_analysis()

@@ -28,15 +28,15 @@ def _select_chart(key):
             st.session_state.det_selected_profile = str(custom[0] if isinstance(custom,list) else custom)
 
 
-def render_deterministic_analysis():
+def render_deterministic_analysis(project=None):
     st.subheader('Deterministic Analysis')
     st.write('Calculate burst resistance and FPR for each crack, then inspect its measured 2D/3D shape on the pipe.')
-    project=get_project()
+    project=get_project() if project is None else project
     summary,profiles=assessment_geometry(project)
     st.info('Using the saved Data Exploration dataset: '+project['source']+'. '
             'Edit the route, defects, segment properties and uncertainties in Data Exploration—not here.')
-    st.caption('Crack resistance uses the existing CorLAS model. Corrosion can be visualized, '
-               'but FPR is marked unavailable until a corrosion-specific resistance model is selected.')
+    st.caption('Crack resistance uses the existing CorLAS model. Use the Corrosion or Dent '
+               'workspace above for their own assessment models; CorLAS is not applied to those threats.')
     with st.expander('Review shared segment properties'):
         st.dataframe(project['segments'],hide_index=True,width='stretch')
     run=st.button('Run Deterministic Analysis',type='primary')

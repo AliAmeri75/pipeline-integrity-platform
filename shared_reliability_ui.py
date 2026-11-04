@@ -7,9 +7,9 @@ from project_editor import get_project
 from reliability_flags import flag_probabilities,annotate_pof_figure,ACTION_LABEL
 
 
-def render_shared_reliability(*,embedded=False):
+def render_shared_reliability(*,embedded=False,project=None):
     from reliability_analysis import result_map,profile_figure
-    project=get_project()
+    project=get_project() if project is None else project
     st.subheader('Risk & Reliability')
     st.info('Using the saved Data Exploration dataset: '+project['source']+'. '
         'Route, defect dimensions, segment properties, distributions and consequences are defined there once.')
