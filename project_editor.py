@@ -16,17 +16,21 @@ def get_project():
     return st.session_state.assessment_project
 
 
-def render_project_editor(summary,profiles,content,is_sample):
+def render_project_editor(summary,profiles,content,is_sample,*,initial_project=None,source_type=''):
     """Return edited draft; publication is explicit, after route review."""
     current=get_project()
-    token='shared-sample-v2-uniform-pipe' if is_sample else hashlib.sha256(content).hexdigest()
+    token=(('shared-sample-v3-'+initial_project['source'] if initial_project is not None else
+        'shared-sample-v2-uniform-pipe') if is_sample else
+        hashlib.sha256(content+str(initial_project.get('source','') if initial_project else source_type).encode()).hexdigest())
     if st.session_state.get('project_source_token')!=token:
-        if is_sample:
+        if initial_project is not None:
+            draft=deepcopy(initial_project)
+        elif is_sample:
             draft=sample_project()
         else:
             draft=dict(route=deepcopy(current['route']),summary=summary.copy(),profiles=profiles,
                 workbook=content,joint_length_m=current['joint_length_m'],
-                source='Uploaded measured profiles',consequence_unit=current['consequence_unit'])
+                source='Uploaded measured '+source_type+' profiles',consequence_unit=current['consequence_unit'])
             draft['segments']=default_segments(draft['route'],summary)
             draft['uncertainties']=default_uncertainties(draft['segments'])
         st.session_state.project_draft=draft
@@ -40,11 +44,12 @@ def render_project_editor(summary,profiles,content,is_sample):
              'and uncertainty assumptions in Deterministic Analysis and Risk & Reliability.')
     st.caption('Chainage is distance from the route origin. Property segments may have any positive length; '
         'they must cover the entire route without gaps or overlaps. Segment IDs are not joint IDs.')
-    tabs=st.tabs(['Defect register','Pipe segments & consequences','Uncertainties','Dent register'])
+    tabs=st.tabs(['Defect register','Pipe segments & consequences','Uncertainties','Dent register'],
+        default='Dent register' if draft['summary'].empty else 'Defect register')
     with tabs[0]:
-        st.caption('Edit defect chainage and type; measured profiles and dimensions remain unchanged. '
-            'The sample places three profiles at 0.5, 4.5 and 8.5 km on one fictional 10 km pipe: '
-            '914.4 mm outside diameter and 11.8 mm wall thickness throughout. Defect sizes vary, not pipe geometry.')
+        st.caption('Edit crack/corrosion chainage and type; measured profile dimensions remain unchanged. '
+            'Dent displacement is entered in the separate Dent register. The sample datasets use '
+            'a fictional 10 km pipe, 914.4 mm OD and 11.8 mm WT throughout.')
         draft['summary']=st.data_editor(draft['summary'],hide_index=True,width='stretch',
             disabled=[c for c in draft['summary'].columns if c not in ['Feature location (m)','Defect type']],
             key='project_defects_'+token,column_config={
@@ -63,7 +68,12 @@ def render_project_editor(summary,profiles,content,is_sample):
             if route_length_km(route)<=0:
                 st.error('Draw or upload a positive-length route before rebuilding its segments.')
             else:
-                draft['segments']=default_segments(route,draft['summary'])
+                geometry=draft['summary']
+                if geometry.empty:
+                    first=draft['segments'].iloc[0]
+                    geometry=pd.DataFrame([{'Feature location (m)':0.,'Outside diameter (mm)':float(first.diameter_in)*25.4,
+                        'Wall thickness (mm)':float(first.wall_thickness_mm)}])
+                draft['segments']=default_segments(route,geometry)
                 draft['uncertainties']=default_uncertainties(draft['segments'])
                 st.session_state.project_editor_revision=st.session_state.get('project_editor_revision',0)+1
                 st.rerun()
@@ -73,11 +83,14 @@ def render_project_editor(summary,profiles,content,is_sample):
         draft['consequence_unit']=st.text_input('Shared consequence unit',draft['consequence_unit'])
     with tabs[2]:
         st.caption('One distribution and SD for each parameter in each property segment. '
-            'Pipe/material/load means come from the segment table; crack-size means come from each measured profile. '
+            'Pipe/material/load means come from the segment table; crack/corrosion-size means come from each measured profile. '
             'SD is absolute, in the parameter units (not a coefficient of variation). '
             'Deterministic ignores SD. These are assumed uncertainties, not automatically estimated measurement accuracy.')
+        st.caption('This register feeds the crack/corrosion models. The starting dent strain model uses its '
+            'dedicated geometry COV and strain-criterion uncertainty controls in Preliminary Analysis → Dent.')
         with st.expander('Parameter names and units'):
-            st.dataframe(pd.DataFrame([dict(parameter=n,meaning=label) for n,label in LABELS.items()]),hide_index=True)
+            st.dataframe(pd.DataFrame([dict(parameter=n,meaning=label.replace('Crack','Crack / corrosion'))
+                for n,label in LABELS.items()]),hide_index=True)
         if st.button('Synchronize uncertainty rows with segment IDs'):
             ids=pd.to_numeric(draft['segments'].section_id,errors='coerce')
             if ids.isna().any() or ids.duplicated().any() or (ids%1!=0).any():

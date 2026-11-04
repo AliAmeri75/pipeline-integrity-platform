@@ -8,7 +8,7 @@ render_project_hero('Maintenance Planning (Cracks/Corrosion/Dents)','Preliminary
     'Deterministic condition, reliability and risk by defect type, using one pipeline dataset.')
 st.caption('Separate assessments do not evaluate combined crack–corrosion–dent effects. '
     'Do not add the threat probabilities to estimate combined failure probability.')
-workspace=st.radio('Defect workspace',['Crack','Corrosion','Dent'],horizontal=True)
+workspace=st.radio('Defect workspace',['Crack','Corrosion','Dent'],horizontal=True,key='preliminary_threat')
 project=get_project()
 if workspace=='Crack':
     from deterministic_analysis import render_deterministic_analysis

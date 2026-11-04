@@ -394,7 +394,7 @@ def render_profile_location_map(
                         f"Chainage: {float(feature_record['Feature location (m)']):,.3f} m<br>"
                         f"{feature_record['Joint ID']} "
                         f"({int(feature_record['Features in joint'])} feature(s))<br>"
-                        f"Maximum depth: {maximum_depth_text}<br>"
+                        f"{'Dent displacement' if defect_type=='Dent' else 'Maximum depth'}: {maximum_depth_text}<br>"
                         f"Profile length: {float(feature_record['Profile length (mm)']):,.1f} mm"
                     ),
                     max_width=280,

@@ -124,8 +124,9 @@ def validate_project(project):
             2*segments.wall_thickness_mm>=25.4*segments.diameter_in).any():
         raise ValueError('Check strength ordering and pipe bore in each segment.')
     summary=p['summary'].copy()
-    if summary.empty or summary['Profile ID'].duplicated().any():
-        raise ValueError('At least one uniquely identified measured profile is required.')
+    has_dents='dent_register' in p and not p['dent_register'].empty
+    if (summary.empty and not has_dents) or summary['Profile ID'].duplicated().any():
+        raise ValueError('Provide uniquely identified measured profiles or at least one dent record.')
     chainage=pd.to_numeric(summary['Feature location (m)'],errors='coerce')/1000
     if not np.isfinite(chainage).all() or not chainage.between(0,length+1e-8).all():
         raise ValueError('Every defect chainage must be within the mapped route.')

@@ -33,7 +33,7 @@ def _read_profiles(content: bytes) -> tuple[pd.DataFrame, dict[str, pd.DataFrame
 
 
 render_project_hero(
-    "Maintenance Planning (Cracks/Corrosion)",
+    "Maintenance Planning (Cracks/Corrosion/Dents)",
     "Data Exploration",
     "Define the pipeline route, defects, segment properties and uncertainties once, then use the same saved dataset for preliminary assessment.",
 )
@@ -48,12 +48,20 @@ st.markdown(
 )
 
 st.subheader("Choose a data source")
+st.caption('Choosing a source creates a separate draft, not an appended dataset. '
+    'The active analysis dataset changes only when you click Save shared dataset for all analyses.')
 data_source = st.radio(
     "Data source",
-    ["Sample crack profiles", "Upload your workbook"],
+    ["Sample crack profiles", "Sample corrosion profiles", "Sample dent data",
+     "Upload your workbook", "Upload dent CSV / Excel"],
     horizontal=True,
     label_visibility="collapsed",
 )
+
+if data_source in ('Sample dent data','Upload dent CSV / Excel'):
+    from dent_exploration import render_dent_exploration
+    render_dent_exploration(is_sample=data_source=='Sample dent data')
+    st.stop()
 
 if data_source == "Sample crack profiles":
     source_content = synthetic_sample_workbook()
@@ -65,6 +73,13 @@ if data_source == "Sample crack profiles":
         file_name=source_name,
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     )
+elif data_source=='Sample corrosion profiles':
+    from exploration_datasets import sample_corrosion_workbook
+    source_content=sample_corrosion_workbook()
+    source_name='sample_corrosion_profiles.xlsx'
+    st.info('Sample data for corrosion profiles. Three synthetic metal-loss profiles on a 10 km pipe.')
+    st.download_button('Download the sample corrosion profiles',source_content,source_name,
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 else:
     uploaded_file = st.file_uploader(
         "Upload a profile workbook",
@@ -76,6 +91,8 @@ else:
     )
     source_content = uploaded_file.getvalue() if uploaded_file is not None else None
     source_name = uploaded_file.name if uploaded_file is not None else ""
+    uploaded_defect_type=st.selectbox('Defect type in this workbook',['Corrosion / metal loss','Crack'])
+    st.caption('Upload measured crack/corrosion depth grids here. Dent displacements use Upload dent CSV / Excel.')
 
 if source_content is None:
     st.subheader("Simple workflow")
@@ -98,17 +115,23 @@ except ProfileFormatError as error:
     st.error(str(error))
     st.stop()
 
-if data_source == "Sample crack profiles":
-    st.success(f"Loaded {len(summary):,} sample crack profiles.")
+if data_source in ('Sample crack profiles','Sample corrosion profiles'):
+    st.success(f"Loaded {len(summary):,} sample {'crack' if data_source=='Sample crack profiles' else 'corrosion'} profiles.")
 else:
     st.success(f"Detected {len(summary):,} feature profiles in {source_name}.")
-defect_type = 'Crack' if data_source == 'Sample crack profiles' else 'Corrosion / metal loss'
+defect_type = ('Crack' if data_source=='Sample crack profiles' else
+    'Corrosion / metal loss' if data_source=='Sample corrosion profiles' else uploaded_defect_type)
 summary = summary_for_defect_type(summary, defect_type)
 st.session_state["prepared_profile_workbook"] = source_content
 st.session_state["prepared_profile_source_name"] = source_name
 st.session_state["prepared_profile_defect_type"] = defect_type
 with st.expander('Define shared defects, pipe segments and uncertainties',expanded=False):
-    draft=render_project_editor(summary,profiles,source_content,data_source=='Sample crack profiles')
+    if data_source=='Sample corrosion profiles':
+        from exploration_datasets import corrosion_project
+        draft=render_project_editor(summary,profiles,source_content,True,initial_project=corrosion_project(source_content))
+    else:
+        draft=render_project_editor(summary,profiles,source_content,data_source=='Sample crack profiles',
+            source_type=defect_type)
 summary=draft['summary']
 
 profile_ids = summary["Profile ID"].astype(str).tolist()
@@ -261,8 +284,9 @@ st.markdown(
 
 st.subheader("Next: Preliminary Analysis")
 st.write(
-    "Use the explored crack dimensions to estimate burst resistance pressure, "
-    "failure pressure ratio (FPR), and probability of failure (POF) for each profile."
+    "Save the shared dataset above, then choose Crack or Corrosion in Preliminary Analysis. "
+    "Each workspace uses its own resistance and reliability model with the same saved pipe and defects."
 )
 if st.button('Open Preliminary Analysis'):
+    st.session_state['preliminary_threat']='Crack' if defect_type=='Crack' else 'Corrosion'
     st.switch_page('preliminary_analysis.py')

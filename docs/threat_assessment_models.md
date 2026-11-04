@@ -2,7 +2,17 @@
 
 All workspaces use the saved Data Exploration route, property segments and joint length. Selecting Crack or Corrosion filters the defect register without changing the pipeline or silently relabelling profiles. Dent geometry is stored in `dent_register`, separately from depth grids because dent displacement is not wall loss. No threat probabilities are combined into a physical interaction calculation.
 
-## Crack
+## Sample and upload workflow
+
+Data Exploration offers Sample crack profiles, Sample corrosion profiles, Sample dent data, Upload your workbook, and Upload dent CSV / Excel. Downloadable samples are synthetic, with distinct corrosion and dent IDs on the same fictional 10 km, 914.4 mm OD, 11.8 mm WT pipeline. Crack samples remain unchanged. Sources are alternative drafts, not automatically appended to the active dataset.
+
+For corrosion, use the sample depth-grid workbook or upload a compatible profile workbook and choose the defect type. Review properties and uncertainties, then click **Save shared dataset for all analyses**. Open Preliminary Analysis to enter the matching threat workspace.
+
+For dents, upload a CSV or `.xlsx` using the downloadable sample columns. Excel reads `Dents`, or the first sheet if that name is absent. Uploaded dent records start with the currently active route and segment properties; review these, replace the route if necessary, and save. A dent-only dataset has an empty crack/corrosion profile register—no dummy crack rows are required. The download includes all measured curvature columns and the combined-damage flag. False/True is parsed explicitly. Geometry, route bounds, unique IDs and booleans are validated at Save, so a new route can be adjusted after the draft is loaded.
+
+The sample dent with the highest geometric strain exceeds the illustrative 6% strain criterion. This is synthetic screening behaviour, not a documented failure. Dent displacement can exceed WT because it is deformation, not missing wall material. The idealized Gaussian visual does not reconstruct the supplied curvature field.
+
+## Crack workflow
 
 Existing CorLAS deterministic and Monte Carlo workflows remain in place. Reliability inputs and calculation behaviour are unchanged. The workspace now receives only crack records from the shared register, so corrosion rows no longer block crack-only analysis. Outputs represent the crack contribution, not all threats.
 
