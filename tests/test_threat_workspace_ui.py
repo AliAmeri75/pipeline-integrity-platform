@@ -19,6 +19,7 @@ class ThreatWorkspaceUITests(unittest.TestCase):
         p['summary']['Maximum depth (mm)']=2.
         p['uncertainties']['distribution']='Deterministic';p['uncertainties']['std']=0.
         app=self.app(p,'Corrosion')
+        self.assertTrue(any('DNV-RP-F101-based' in x.value for x in app.markdown))
         app.checkbox(key='corr_applicable').check().run()
         app.checkbox(key='corr_uncertainty_review').check().run()
         app.number_input(key='corr_n').set_value(100).run()
@@ -34,6 +35,7 @@ class ThreatWorkspaceUITests(unittest.TestCase):
             axial_length_mm=600.,circumferential_width_mm=300.,circumferential_radius_mm=-1500.,
             axial_radius_mm=2500.,associated_crack_or_metal_loss=False)])
         app=self.app(p,'Dent')
+        self.assertTrue(any('not a rupture-pressure model' in x.value for x in app.markdown))
         app.checkbox(key='dent_confirmed').check().run()
         app.number_input(key='dent_n').set_value(100).run()
         next(b for b in app.button if b.label=='Run Dent Reliability Analysis').click().run()

@@ -50,7 +50,21 @@ The selected criterion defaults to a historical 6% strain screening example; it 
 
 A separate optional conditional consequence can produce an expected **criterion-event consequence proxy**. Burst/leakage consequence tools remain available, but their results are not silently multiplied by the criterion probability. Actual dent rupture/fatigue risk requires a calibrated failure model, loading/pressure history and appropriate validation; that remains outstanding.
 
-## Replacing models
+## Combined-defect research candidates
+
+Combined-defect calculations are **not implemented**. The interface now identifies its current model for each threat and links the following research candidates:
+
+- Dent–crack: [Okodi et al. (2020), Crack Propagation and Burst Pressure of Pipeline with Restrained and Unrestrained Concentric Dent-Crack Defects Using Extended Finite Element Method](https://www.mdpi.com/2076-3417/10/21/7554). This is an XFEM approach for the studied configurations, not a universally applicable closed-form pressure equation.
+- Dent–corrosion: [Huang, Qin and Hu (2022), Failure pressure prediction by defect assessment and finite element modelling on pipelines containing a dent-corrosion defect](https://doi.org/10.1016/j.oceaneng.2022.112875).
+- Adjacent dent–corrosion interaction: [Sun et al. (2021), Assessment of Interaction Between a Dent and an Adjacent Corrosion Feature on Pipelines and the Effect on Pipeline Failure Pressure by Finite-Element Modeling](https://doi.org/10.1061/(ASCE)PS.1949-1204.0000570).
+
+Review full methods, material/calibration data, load cases and validation domains before implementation. Inputs may include paired defect IDs, axial and circumferential offsets, crack orientation, 3D dent and metal-loss geometry, stress–strain/fracture behaviour, restraint, indentation history and service pressure cycles. Which inputs are necessary depends on the selected model and failure mode. An offline validated FE surrogate could be wrapped by a replaceable web-app engine; it is not supplied by this change. No interaction reduction factor is invented.
+
+Current isolated crack and corrosion engines are not combined by adding their probabilities, modifying nominal pressure with an arbitrary stress-concentration factor, or treating dent strain-criterion exceedance as rupture probability. A combined model needs its own leak/rupture event definitions and validation before those probabilities are used with release consequences.
+
+[API's RP 1183 Addendum 1 notice](https://www.api.org/products-and-services/standards/important-standards-announcements/addendum-1-rp-1183) documents removal of first-edition Table 6 fatigue-screening guidance. The existing geometric strain implementation is separate from that table and must not be described as implementing the complete current API RP 1183.
+
+## Engine replacement contracts
 
 Register pressure-resistance functions in `CORROSION_MODELS`. Their contract is (D_mm, t_mm, depth_mm, length_mm, UTS_psi) -> nominal pressure_psi; functions must validate their own domain. The common leakage classification, sizing checks and sampling domain also need review for a materially different model.
 
