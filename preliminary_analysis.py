@@ -39,7 +39,8 @@ with st.expander('Model inputs, outputs and applicability'):
         st.write('The starting dent model uses the geometric strain equations documented in PHMSA Mechanical '
             'Damage (2009), section 7.2.3. It returns maximum inside/outside equivalent strain. '
             'Monte Carlo estimates the probability of exceeding the selected strain criterion. '
-            'It does not calculate rupture pressure, FPR, fatigue life or burst/leakage POF.')
+            'It does not calculate rupture pressure, FPR or burst/leakage POF. The separate SCADA & Fatigue tab adds '
+            'pressure-cycle damage and time-dependent fatigue reliability (He–Zhou, 2021), with applicability checks.')
         st.caption('Dent–crack and dent–corrosion interactions remain unsupported. The consequence proxy '
             'must describe the strain-criterion event itself, not an assumed rupture or leak.')
 with st.expander('Combined defects — available research and next implementation step'):

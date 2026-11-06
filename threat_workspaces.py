@@ -85,7 +85,7 @@ def render_corrosion_workspace(project):
         '· [DNV publisher scope](https://www.dnv.com/energy/standards-guidelines/dnv-rp-f101-corroded-pipelines/)')
     applicable=st.checkbox('I confirm these are isolated longitudinal metal-loss defects without associated cracks or dents, '
         'and the pressure/geometry inputs are appropriate for this screening model.',key='corr_applicable')
-    det,rel,con=st.tabs(['Deterministic Analysis','Risk & Reliability','Consequence Assessment'])
+    det,rel,fatigue,con=st.tabs(['Deterministic Analysis','Risk & Reliability','SCADA & Fatigue','Consequence Assessment'])
     with det:
         if p['summary'].empty:
             st.info('No corrosion profiles are saved. Upload metal-loss profiles in Data Exploration, '
@@ -190,7 +190,7 @@ def render_dent_workspace(project):
     st.info('Dents use the same saved route and segment OD/WT. Their displacement and measured curvature radii '
         'are entered in Data Exploration → Shared dataset → Dent register.')
     st.caption('Dent displacement is not metal loss. The starting model estimates geometric strain, not residual '
-        'burst pressure. No fatigue, pressure-cycle history, restraint, re-rounding or interacting crack/corrosion model is included.')
+        'burst pressure. A separate SCADA fatigue tab is available for plain, smooth, unrestrained dents; re-rounding and interacting crack/corrosion models are not included.')
     st.markdown('[PHMSA Mechanical Damage report, section 7.2.3, equations 2–6 (PDF p.97)]'
         '(https://www.phmsa.dot.gov/sites/phmsa.dot.gov/files/docs/technical-resources/pipeline/gas-distribution-integrity-management/65991/mechanicaldamagefinalreport.pdf)')
     model=st.selectbox('Dent assessment model',list(DENT_MODELS),format_func=lambda model_id:
@@ -200,7 +200,7 @@ def render_dent_workspace(project):
         'or measured material failure capacity. Choose the criterion and uncertainty for your assessment.')
     confirmed=st.checkbox('I confirm the signed radii follow the referenced convention and the plain-dent '
         'geometry/criterion assumptions have been reviewed.',key='dent_confirmed')
-    det,rel,con=st.tabs(['Deterministic Analysis','Risk & Reliability','Consequence Assessment'])
+    det,rel,fatigue,con=st.tabs(['Deterministic Analysis','Risk & Reliability','SCADA & Fatigue','Consequence Assessment'])
     dents=p.get('dent_register',empty_dent_register())
     with det:
         st.subheader('Dent strain and geometry')
@@ -298,6 +298,9 @@ def render_dent_workspace(project):
             _csv('Download dent probabilities',assessed,'dent_criterion_probabilities.csv')
             _csv('Download dent joint-segment probabilities',joints,'dent_joint_segment_probabilities.csv')
         elif saved: st.info('Dent inputs changed; rerun the reliability assessment.')
+    with fatigue:
+        from dent_fatigue_ui import render_dent_fatigue
+        render_dent_fatigue(p)
     with con:
         st.caption('These burst/leakage release-consequence tools are available for future dent failure models. '
             'Their outputs are not automatically multiplied by strain-criterion exceedance probability.')

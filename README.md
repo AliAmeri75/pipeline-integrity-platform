@@ -262,3 +262,8 @@ See [model equations, applicability, uncertainty assumptions and replacement ins
 - <https://github.com/AliAmeri75/pipeline-inspection-app>
 - <https://github.com/AliAmeri75/pipeline-rl-planning>
 - <https://github.com/AliAmeri75/pipeline_reliability_J2>
+
+Dent **SCADA & Fatigue**: load the synthetic 7-day sample or upload CSV/Excel,
+select a local pressure channel and units, count rainflow cycles, then assess
+plain-dent fatigue damage and time-dependent reliability. See
+[model scope and assumptions](docs/threat_assessment_models.md#scada-pressure-cycles-and-dent-fatigue-research-implementation).

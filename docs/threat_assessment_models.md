@@ -71,3 +71,53 @@ Register pressure-resistance functions in `CORROSION_MODELS`. Their contract is 
 Register strain-demand functions in `DENT_MODELS`. Their contract is (D_mm, t_mm, displacement_mm, axial_length_mm, signed_R1_mm, signed_R2_mm) -> strain fraction. A fatigue/burst model needs a new event/output contract and uncertainty/loading inputs, not merely a new label. Update domain checks, references, deterministic benchmarks, Monte Carlo tests, interface descriptions and exported probability basis together.
 
 Model changes need validation against independent test/field data before operational use. The tests supplied here verify equations and software behaviour; they do not establish asset-specific accuracy.
+
+## SCADA pressure cycles and dent fatigue (research implementation)
+
+Preliminary Analysis → Dent → SCADA & Fatigue accepts the downloadable synthetic
+7-day CSV or a user CSV/XLSX (first sheet). Users select one pipeline, timestamp,
+pressure column and unit (MPa/bar/psi). Use local differential pressure at the dent;
+no pressure interpolation along the route is inferred. Times without timezone
+information are assumed UTC. Duplicate, reversed, invalid and irregular timestamps,
+missing/negative pressures and mixed pipeline IDs are rejected. Records are treated
+as interval-start observations; exposure is last-minus-first plus the median interval.
+A continuous record is required; gaps are not silently interpolated. Users must
+review source quality flags; the app does not infer vendor-specific quality codes.
+
+`rainflow==3.2.0` extracts individual cycles and residual half cycles. A user-selected
+minimum range (MPa) filters small cycles. Unbinned ranges, not the display histogram,
+feed damage. Sampling resolution, sensor noise and range filtering affect results.
+The synthetic file is illustrative only, not a model of an actual operator's hydraulics.
+
+He & Zhou (2021), https://doi.org/10.1016/j.jpse.2021.08.004:
+- Eq.15: K = 1 + 1.7169 (D/t)^0.8 (d/D)^0.7. Automatic calculation is restricted
+  to 20 ≤ D/t ≤ 60 and 0.02 ≤ d/D ≤ 0.12. The existing demonstration pipe is
+  outside this D/t range; it is deliberately not extrapolated. Users may instead
+  supply an independently reviewed SCF with a required justification. The starting
+  manual value 6 is explicitly illustrative, not calculated from the selected dent.
+- Eq.10: N = exp[43.944 − 2.971 ln(145.033 Δσ_local / 2)], Δσ in MPa.
+  Therefore m=2.971, A=exp(43.944)*(145.033/2)^(-m), about 3.61e13.
+- Δσ_local = K Δp D/(2t). Annual damage at mean A is
+  sum(count * Δσ_local^m)/(record_years * mean_A).
+- Independent lognormal A and critical Miner damage have literature-example means
+  3.61e13 and 1, COV 0.45 and 0.30 (editable COVs). With zero initial damage,
+  cumulative Pf(T)=P(A*Dcrit ≤ T*annual_stress_power), evaluated analytically.
+  This can resolve small tails without Monte Carlo sample-count limits.
+- Fixed OD, WT, geometry, SCF and spectrum. No calibrated SCF error, geometry
+  uncertainty, mean-stress correction, load sequence or re-rounding evolution.
+- Users specify prior years under the same assumed pressure spectrum. Age zero
+  assumes zero prior damage. Time extrapolation requires explicit acknowledgement
+  of a stationary spectrum. One synthetic week does not establish actual annual loading.
+
+Outputs are pressure history, rainflow spectrum/download, projected damage at mean
+A, cumulative fatigue-limit probability, and unconditional interval probability
+increments. A selected pressure history assesses one selected dent at a time.
+Do not label these results as leakage or rupture Pf or attach release consequences
+without an appropriate physical outcome model. This does not optimize inspections,
+represent POD/measurement updating or evaluate dent–crack/corrosion/weld interaction.
+It is not the withdrawn API RP1183 First Edition Table6 screening method.
+
+Verification includes a hand stress/damage calculation, exact lognormal probability,
+cycle-count benchmarks, source validation, monotonic time response and the rounded
+He–Zhou Example1 discharge beta ≈4.82 at year5 for d/D=5%. Agreement with a paper
+example verifies implementation, not predictive accuracy on operator data.
