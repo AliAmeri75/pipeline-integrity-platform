@@ -86,6 +86,12 @@ publications = st.Page(
     icon=":material/library_books:",
     url_path="publications-team",
 )
+validation = st.Page(
+    "validation_examples.py",
+    title="Validation Examples",
+    icon=":material/fact_check:",
+    url_path="validation",
+)
 teaching_pilot = st.Page(
     "teaching_pilot.py",
     title="Teaching Pilot and Feedback",
@@ -109,7 +115,7 @@ navigation = st.navigation(
             geohazard_exploration,
             geohazard_planning,
         ],
-        "Research Resources": [publications],
+        "Research Resources": [validation, publications],
         "Participate": [teaching_pilot],
     }
 )

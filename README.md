@@ -267,3 +267,8 @@ Dent **SCADA & Fatigue**: load the synthetic 7-day sample or upload CSV/Excel,
 select a local pressure channel and units, count rainflow cycles, then assess
 plain-dent fatigue damage and time-dependent reliability. See
 [model scope and assumptions](docs/threat_assessment_models.md#scada-pressure-cycles-and-dent-fatigue-research-implementation).
+
+**Validation Examples** (`/validation`) includes all 16 published NTSB Marshall
+CorLAS reconstruction scenarios, source links, explicit assumptions, rectangular vs
+elliptical comparisons, and downloadable inputs/results. See
+[scope and numerical checks](docs/marshall_validation.md).

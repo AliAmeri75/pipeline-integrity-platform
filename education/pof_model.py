@@ -174,13 +174,18 @@ def _positive(name: str, value: float) -> None:
         raise ValueError(f"{name} must be positive.")
 
 
-def corlas_failure_pressure(inputs: POFInputs) -> dict[str, float]:
+def corlas_failure_pressure(
+    inputs: POFInputs, *, flaw_shape: str = "Elliptical",
+    flow_stress_psi: float | None = None,
+) -> dict[str, float]:
     """Return CorLAS failure pressure and intermediate teaching values.
 
     The implementation follows the flow-stress and fracture-toughness checks
     used by the existing ALIRIM inspection model.  Inputs are converted from
     the tutorial's student-facing SI fields to the units expected by that
-    calculation.
+    calculation. Optional Rectangular geometry and explicit flow stress support
+    published benchmark comparisons; existing callers retain elliptical geometry.
+    External flaw only. Charpy correlation uses the legacy ft-lbf input convention.
     """
 
     for name, value in inputs.__dict__.items():
@@ -199,11 +204,17 @@ def corlas_failure_pressure(inputs: POFInputs) -> dict[str, float]:
     sigma_u = inputs.ultimate_strength_psi
     pi = np.pi
 
-    sigma_flow = (sigma_y + sigma_u) / 2.0
+    if flaw_shape not in ("Elliptical", "Rectangular"):
+        raise ValueError("Flaw shape must be Elliptical or Rectangular.")
+    if flow_stress_psi is not None:
+        _positive("Flow stress", float(flow_stress_psi))
+    sigma_flow = (sigma_y + sigma_u) / 2.0 if flow_stress_psi is None else float(flow_stress_psi)
     y_factor = 0.4 if diameter / (2.0 * wall) <= 10.0 else 0.0
     reference_area = length * wall
-    effective_area = pi * length * depth / 4.0
-    effective_depth = 4.0 * effective_area / (pi * length)
+    # Preserve the production/teaching elliptical default. Rectangular area is
+    # needed for the separately identified NTSB Marshall benchmark scenarios.
+    effective_area = length * depth if flaw_shape == "Rectangular" else pi * length * depth / 4.0
+    effective_depth = depth if flaw_shape == "Rectangular" else 4.0 * effective_area / (pi * length)
     geometry_ratio = length**2 / (diameter * wall)
     if geometry_ratio <= 50.0:
         folias = np.sqrt(1.0 + 0.6275 * geometry_ratio - 0.003375 * geometry_ratio**2)
@@ -249,38 +260,62 @@ def corlas_failure_pressure(inputs: POFInputs) -> dict[str, float]:
             8.515 + (depth_ratio - 0.95) * (162.0 / wall)
         ) * (1.0 - 2.0 * z_value) + 2.0 * z_value
 
-    sigma = sigma_y
-    for _ in range(1000):
-        residual = (
-            q_factor
-            * free_surface
-            * effective_depth
-            * (
-                sigma**2 * pi / elastic_modulus
-                + f3 * k_value * sigma ** (1.0 / hardening_exponent) * sigma
-            )
-            - critical_j
-        )
-        if abs(residual) <= 1e-3:
-            break
-        derivative = (
-            q_factor
-            * free_surface
-            * effective_depth
-            * (
-                2.0 * pi * sigma / elastic_modulus
-                + (1.0 + 1.0 / hardening_exponent)
-                * f3
-                * k_value
-                * sigma ** (1.0 / hardening_exponent)
-            )
-        )
-        if derivative == 0 or not np.isfinite(derivative):
-            raise ValueError("The fracture-toughness calculation did not converge.")
-        sigma -= residual / derivative
+    if flaw_shape == "Rectangular":
+        if k_value <= 0 or critical_j <= 0:
+            raise ValueError("Rectangular toughness check requires positive J and hardening coefficient.")
+        def j_residual(stress):
+            return q_factor * free_surface * effective_depth * (
+                stress**2*pi/elastic_modulus
+                + f3*k_value*stress**(1.0/hardening_exponent)*stress
+            ) - critical_j
+        lower, upper = 0.0, sigma_y
+        for _ in range(100):
+            if j_residual(upper) >= 0:
+                break
+            upper *= 2.0
+        else:
+            raise ValueError("Could not bracket the rectangular-flaw toughness root.")
+        for _ in range(200):
+            sigma = (lower+upper)/2.0
+            residual = j_residual(sigma)
+            if abs(residual) <= 1e-7:
+                break
+            if residual > 0:
+                upper = sigma
+            else:
+                lower = sigma
     else:
-        raise ValueError("The fracture-toughness calculation did not converge.")
-
+        sigma = sigma_y
+        for _ in range(1000):
+            residual = (
+                q_factor
+                * free_surface
+                * effective_depth
+                * (
+                    sigma**2 * pi / elastic_modulus
+                    + f3 * k_value * sigma ** (1.0 / hardening_exponent) * sigma
+                )
+                - critical_j
+            )
+            if abs(residual) <= 1e-3:
+                break
+            derivative = (
+                q_factor
+                * free_surface
+                * effective_depth
+                * (
+                    2.0 * pi * sigma / elastic_modulus
+                    + (1.0 + 1.0 / hardening_exponent)
+                    * f3
+                    * k_value
+                    * sigma ** (1.0 / hardening_exponent)
+                )
+            )
+            if derivative == 0 or not np.isfinite(derivative):
+                raise ValueError("The fracture-toughness calculation did not converge.")
+            sigma -= residual / derivative
+        else:
+            raise ValueError("The fracture-toughness calculation did not converge.")
     normal_stress = sigma * (
         (1.0 - effective_area / reference_area)
         / (1.0 - effective_area / (reference_area * folias))

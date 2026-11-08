@@ -1,0 +1,17 @@
+scenario_id,source_row,analysis_year,published_run_label,wall_thickness_in,corlas_length_in,effective_depth_in,ntsb_failure_pressure_psi,source_notes
+M2005-01,1,2005,1,0.252,51.6,0.091,649,
+M2005-02,2,2005,2,0.252,51.6,0.111,572,
+M2005-03,3,2005,3,0.252,51.6,0.126,512,
+M2005-04,4,2005,4,0.252,51.6,0.146,424,
+M2005-05,5,2005,5,0.252,51.6,0.123,525,
+M2005-06,6,2005,6,0.252,51.6,0.143,437,
+M2005-07,7,2005,7,0.252,51.6,0.158,372,
+M2005-08,8,2005,8,0.252,51.6,0.178,287,"Source description uses 0.055in corrosion although numeric depth is 0.178in; numeric input column retained."
+M2007-01,9,2007,7,0.250,51.6,0.083,672,
+M2007-02,10,2007,8,0.250,51.6,0.108,575,
+M2007-03,11,2007,9,0.250,51.6,0.118,536,
+M2007-04,12,2007,10,0.250,51.6,0.143,428,
+M2007-05,13,2007,11,0.250,51.6,0.096,622,
+M2007-06,14,2007,12,0.250,51.6,0.121,525,"Published label 12 repeats; unique scenario_id added without altering source label."
+M2007-07,15,2007,12,0.250,51.6,0.131,481,"Published label 12 repeats; unique scenario_id added without altering source label."
+M2007-08,16,2007,12,0.250,51.6,0.156,372,"Published label 12 repeats; unique scenario_id added without altering source label."

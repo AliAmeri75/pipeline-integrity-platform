@@ -71,6 +71,7 @@ if workspace=='Crack':
     deterministic,reliability,consequence=st.tabs([
         'Deterministic Analysis','Risk & Reliability','Consequence Assessment'])
     with deterministic:
+        st.markdown('[Validation example: compare CorLAS with the NTSB Marshall calculations](validation)')
         if selected['summary'].empty:
             st.info('No cracks in the saved dataset. Add crack profiles in Data Exploration.')
         else: render_deterministic_analysis(project=selected)
