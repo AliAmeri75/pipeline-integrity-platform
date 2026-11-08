@@ -1,6 +1,8 @@
 # Marshall published-calculation comparison
 
-Location: Research Resources → Validation Examples (`/validation`). Also linked from
+Location: Research Resources → Validation Examples → Preliminary Analysis Validation
+→ Marshall Burst Resistance (`/validation`). Planning Validation is a separate tab
+and is currently under construction. Also linked from
 Preliminary Analysis → Crack → Deterministic Analysis. This is an isolated benchmark;
 it does not replace or write the user's shared route, defect profiles or planning inputs.
 
