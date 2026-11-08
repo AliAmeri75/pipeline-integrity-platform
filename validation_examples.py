@@ -131,9 +131,6 @@ with planning:
                 'when the crack-affected portion was large, including ILI costs.')
     st.latex(r'\mathrm{VoI}=C_{\mathrm{prior}}-C_{\mathrm{pre\text{-}posterior}}')
     st.caption('Positive VoI indicates an economic benefit from ILIs under the study assumptions.')
-    st.info('Published planning reference added. Numerical reproduction is pending: the linked conference '
-            'page provides the abstract but does not supply the full case-input tables, optimal intervals '
-            'or cost results needed for a row-by-row benchmark.')
     st.write('The numerical comparison will check excavation/ILI intervals, expected lifecycle costs, '
              'annual burst and leakage probabilities, safety feasibility, and VoI using the same '
              'inputs, repair rules and probability definitions as the paper.')
