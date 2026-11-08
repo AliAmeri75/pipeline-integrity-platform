@@ -110,9 +110,30 @@ with preliminary:
         'marshall_ntsb_published_inputs.csv','text/csv',key='marshall_source_download')
 
 with planning:
-    st.subheader('Planning Validation')
-    st.info('Under construction — inspection and maintenance planning benchmarks will be added here.')
-    st.write('This section will compare inspection intervals, repair decisions and lifecycle costs '
-             'with published reference cases using matched inputs and assumptions.')
-    st.caption('No planning-validation results are available yet. The Marshall burst-resistance '
-               'comparison is in Preliminary Analysis Validation.')
+    st.subheader('IPC 2026 · Risk-based Inspection and Excavation Planning')
+    st.markdown('**Risk Based Inspection and Excavation Scheduling for Cracked Pipeline Systems '
+                'Considering Regulatory Safety Constraints**')
+    st.write('Mohammadali Ameri Fard Nasrand and Yong Li · University of Alberta')
+    st.caption('International Pipeline Conference · Calgary, Canada · September 21–25, 2026 · '
+               'Session 07-06: Cracks Risk and Reliability · Submission 183484 · Technical Paper Publication')
+    st.link_button('Open IPC paper details and abstract ↗',
+        'https://ipc.secure-platform.com/a/solicitations/265/sessiongallery/24385/application/183484')
+    st.write('The study compares two planning strategies for pipeline systems with growing cracks, '
+             'imperfect repairs and new crack initiation, using Bayesian decision analysis.')
+    st.dataframe(pd.DataFrame([
+        ['Prior analysis', 'Excavation and repair without additional ILIs',
+         'Minimize expected prior lifecycle cost subject to annual POF constraints'],
+        ['Pre-posterior analysis', 'ILI-informed excavation and repair',
+         'Minimize expected pre-posterior lifecycle cost subject to annual POF constraints'],
+    ], columns=['Analysis', 'Planning strategy', 'Decision objective']),hide_index=True,width='stretch')
+    st.markdown('**Reported finding:** excavation without additional ILIs was more cost-effective '
+                'when the crack-affected portion was small. ILI-informed planning was more cost-effective '
+                'when the crack-affected portion was large, including ILI costs.')
+    st.latex(r'\mathrm{VoI}=C_{\mathrm{prior}}-C_{\mathrm{pre\text{-}posterior}}')
+    st.caption('Positive VoI indicates an economic benefit from ILIs under the study assumptions.')
+    st.info('Published planning reference added. Numerical reproduction is pending: the linked conference '
+            'page provides the abstract but does not supply the full case-input tables, optimal intervals '
+            'or cost results needed for a row-by-row benchmark.')
+    st.write('The numerical comparison will check excavation/ILI intervals, expected lifecycle costs, '
+             'annual burst and leakage probabilities, safety feasibility, and VoI using the same '
+             'inputs, repair rules and probability definitions as the paper.')
