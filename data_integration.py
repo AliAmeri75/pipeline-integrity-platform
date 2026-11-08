@@ -35,7 +35,7 @@ def _read_profiles(content: bytes) -> tuple[pd.DataFrame, dict[str, pd.DataFrame
 render_project_hero(
     "Maintenance Planning (Cracks/Corrosion/Dents)",
     "Data Exploration",
-    "Define the pipeline route, defects, segment properties and uncertainties once, then use the same saved dataset for preliminary assessment.",
+    "Define the pipeline route, defects, segment properties and uncertainties once, then use the same saved dataset for preliminary assessment and crack inspection planning.",
 )
 
 st.markdown(

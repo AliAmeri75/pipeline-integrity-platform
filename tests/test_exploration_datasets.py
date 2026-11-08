@@ -59,7 +59,7 @@ class ExplorationDatasetTests(unittest.TestCase):
 
     def test_sample_choices_save_without_reverting_on_rerun(self):
         for choice,expected in [('Sample corrosion profiles','Corrosion'),('Sample dent data','Dent')]:
-            app=AppTest.from_file(str(Path(__file__).resolve().parents[1]/'data_integration.py'),default_timeout=60).run()
+            app=AppTest.from_file(str(Path(__file__).resolve().parents[1]/'streamlit_app.py'),default_timeout=60).run().switch_page('data_integration.py').run()
             app.radio[0].set_value(choice).run()
             self.assertEqual(len(app.exception),0)
             next(b for b in app.button if b.label=='Save shared dataset for all analyses').click().run()

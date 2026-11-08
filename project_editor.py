@@ -41,7 +41,8 @@ def render_project_editor(summary,profiles,content,is_sample,*,initial_project=N
     st.session_state.setdefault('project_joint_length',float(draft['joint_length_m']))
     st.subheader('Shared pipeline dataset')
     st.write('Define the asset once here. Save it to use the same route, defects, segment properties '
-             'and uncertainty assumptions in Deterministic Analysis and Risk & Reliability.')
+             'and uncertainty assumptions in Deterministic Analysis, Risk & Reliability, '
+             'and Static Multiple Inspection and Excavation Planning.')
     st.caption('Chainage is distance from the route origin. Property segments may have any positive length; '
         'they must cover the entire route without gaps or overlaps. Segment IDs are not joint IDs.')
     tabs=st.tabs(['Defect register','Pipe segments & consequences','Uncertainties','Dent register'],
@@ -139,10 +140,11 @@ def publish_project(draft):
             project=validate_project(draft)
             st.session_state.assessment_project=project
             st.session_state.prepared_profile_route=project['route']
-            st.success('Saved. Deterministic Analysis and Risk & Reliability now use this exact dataset.')
+            st.success('Saved. Preliminary Analysis and Static Multiple Inspection and Excavation Planning now use this exact dataset.')
         except (ValueError,KeyError,TypeError) as error:
             st.error('Dataset not saved: '+str(error))
     saved=get_project()
+    st.page_link('inspection_project.py',label='Continue to Inspection Planning with this saved dataset',icon=':material/calendar_month:')
     try:
         if project_signature(validate_project(draft))!=project_signature(saved):
             st.warning('Unsaved dataset changes. Downstream analyses still use the last saved dataset.')

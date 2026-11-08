@@ -14,7 +14,7 @@ class ProfileMapTests(unittest.TestCase):
         def legacy_renderer(summary,selected_profile_id):
             raise AssertionError('Old map helper should be refreshed before use')
         with patch.object(profile_map,'render_profile_location_map',legacy_renderer):
-            app=AppTest.from_file(str(Path(__file__).resolve().parents[1]/'data_integration.py'),default_timeout=60).run()
+            app=AppTest.from_file(str(Path(__file__).resolve().parents[1]/'streamlit_app.py'),default_timeout=60).run().switch_page('data_integration.py').run()
             self.assertEqual(len(app.exception),0)
             self.assertIn('Pipeline and defect locations',[s.value for s in app.subheader])
             self.assertEqual(app.session_state.exploration_selected_profile,'SYN-001')
@@ -30,7 +30,7 @@ class ProfileMapTests(unittest.TestCase):
 
     def test_map_precedes_views_and_click_updates_selection_without_replay(self):
         from streamlit.testing.v1 import AppTest
-        app=AppTest.from_file(str(Path(__file__).resolve().parents[1]/'data_integration.py'),default_timeout=60).run()
+        app=AppTest.from_file(str(Path(__file__).resolve().parents[1]/'streamlit_app.py'),default_timeout=60).run().switch_page('data_integration.py').run()
         self.assertEqual(len(app.exception),0)
         headings=[s.value for s in app.subheader]
         self.assertLess(headings.index('Pipeline and defect locations'),headings.index('Selected profile'))

@@ -2,12 +2,14 @@
 
 | Planning module | Open module |
 |---|---|
-| Static Multiple Inspection and Excavation Planning | [Open application](https://pipeline-inspection-appgit-qjifsvi4zeuyuchaueiuwm.streamlit.app/inspection_planner) |
+| Static Multiple Inspection and Excavation Planning | [Open application](inspection) |
 | Dynamic Inspection and Maintenance Planning | [Open application](https://pipeline-rl-planning.streamlit.app/) |
 | Static Single Delayed Inspection Planning | [Open application](https://pipeline-reliability-voi.streamlit.app/simulation) |
 
-The ALIRIM platform provides a common introduction to each research component and
-opens the corresponding analysis environment in a new browser tab.
+Static Multiple Inspection and Excavation Planning uses the saved Data Exploration
+dataset within this app. Save the route, cracks, pipe properties and uncertainties
+first, then open the planner from the sidebar. Dynamic and Single Delayed Inspection
+Planning still open their independent analysis environments.
 
 ## Data and privacy
 

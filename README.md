@@ -20,8 +20,8 @@ ALIRIM — Asset Lifecycle Intelligence for Risk & Integrity Management
 │   ├── Probability-density plots and Monte Carlo POF
 │   └── Maintenance interpretation and knowledge check
 ├── Static Multiple Inspection and Excavation Planning
-│   ├── Integrated introduction
-│   └── Open standalone simulation directly
+│   ├── Reuse the saved Data Exploration route, cracks and pipe properties
+│   └── Compare prior and ILI-informed intervals within this app
 ├── Dynamic Inspection and Maintenance Planning
 │   ├── Introduction
 │   └── Open independent application
@@ -31,15 +31,11 @@ ALIRIM — Asset Lifecycle Intelligence for Risk & Integrity Management
 └── Publications, documentation and team
 ```
 
-Each scientific application has its own GitHub repository and Streamlit
-deployment. This repository provides a consistent gateway, documentation, and
-new-tab launch links. The `education/` folder contains a deliberately small,
-transparent learning model adapted from the inspection repository so students can
-understand the path from ILI measurements to POF before opening the full research
-applications. The Data Integration page prepares grid-profile measurements for those
-planning workflows without modifying the source workbook. The preferred Static Multiple Inspection and Excavation Planning introduction is
-included here, and its button opens the
-standalone simulation directly so users do not pass through two introductions.
+Static Multiple Inspection and Excavation Planning now runs inside this app and
+reads the same saved asset register as Preliminary Analysis. Its standalone
+repository remains available for independent manual-input studies. Dynamic and
+Single Delayed Inspection Planning remain external applications. The education
+folder contains a compact learning model; ALIRIM Education has its own deployment.
 
 ## Unified Data Exploration → Preliminary Analysis
 
@@ -59,12 +55,51 @@ come from measured feature dimensions. Choose Deterministic, Normal, Lognormal
 or Gumbel. Synchronize uncertainty rows after adding or changing segment IDs.
 
 Press **Save shared dataset for all analyses** before opening Preliminary
-Analysis. Downstream pages do not request another route, defect upload or
+Analysis or Static Multiple Inspection and Excavation Planning. Downstream pages do not request another route, defect upload or
 independent set of pipe properties. Unsaved drafts are identified; analysis
 signatures invalidate old results after saved input changes. Use in-app
 navigation to retain the Streamlit session. Current storage is session-only;
 download the registers and centreline for your records. External independent
-planning applications are not silently synchronized across deployments.
+planning applications are not synchronized across deployments; use the integrated
+Static Multiple Inspection and Excavation Planning page for the shared-data workflow.
+
+### Data Exploration → Inspection Planning
+
+1. Save the dataset in Data Exploration.
+2. Choose **Continue to Inspection Planning with this saved dataset**, or select
+   Static Multiple Inspection and Excavation Planning in the same app sidebar.
+3. Review the saved route, profile IDs, physical joint grouping and input tables.
+   Set only planning-specific assumptions: growth/initiation, candidate intervals,
+   ILI detection/sizing, repair, safety and costs. Run the comparison.
+
+No asset data is transferred through URLs or to a separate app. The planner uses
+an isolated, validated copy of the saved session dataset. It keeps all cracks in
+one nominal joint together, includes initially clean joints, and uses the final
+partial joint without rounding the ILI route length. It carries each segment's
+OD, WT, pressure, strengths, Charpy, elastic modulus and model-factor distributions,
+plus the crack-size distributions/SDs. Measured maxima and full profile lengths
+are the crack geometry inputs; this is not a new interacting-defect model.
+
+This planning engine currently supports **cracks only**. A mixed corrosion/dent
+project is blocked instead of dropping defects or treating them as cracks. A
+property boundary inside a physical joint must have consistent planning inputs
+on both sides; otherwise align that boundary with a nominal joint boundary before
+running. There is no silent property averaging or creation of extra joints.
+
+Costs are in millions of the saved consequence currency (no exchange conversion).
+Saved segment losses describe a segment event; the planner sums joint failure
+costs. Reusing a segment loss for each joint failure therefore requires an explicit
+unchecked-by-default cost assumption. Otherwise use the visible planning failure
+costs. ILI cost remains per km per event, multiplied by the exact mapped length.
+
+Results and CSVs identify the source dataset hash. Changing saved data or any
+planning input hides old recommendations until rerun. The original survival-at-
+time-zero conditioning is retained, and retained/requested sample counts are
+reported; future annual conditional failure measures are not the same as the
+snapshot POF in Preliminary Analysis. This connection is not independent numerical
+validation of the physical or planning model.
+
+Implementation notes and source provenance: [shared planning handoff](docs/shared_planning.md).
 
 ### Common demonstration dataset
 

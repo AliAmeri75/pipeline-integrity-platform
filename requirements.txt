@@ -9,6 +9,8 @@ openai>=2.0,<3
 plotly>=5.18,<7
 folium>=0.19,<1
 streamlit-folium>=0.24,<1
+scipy>=1.10,<2
+packaging>=23,<27
 
 # ASTM-style rainflow extraction; residual half cycles retained.
 rainflow==3.2.0
