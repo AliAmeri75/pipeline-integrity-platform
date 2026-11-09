@@ -6,6 +6,7 @@ uncertain crack initiation, crack growth, detection, sizing, repair, leakage,
 and burst events.
 
 The current version is intended as a transparent research and demonstration
-tool. Users can define joint groups and initial cracks, optimize both methods
-over the same candidate intervals, and calculate net VoI as the optimized prior
-cost minus the optimized ILI-informed cost.
+tool. Users define their pipeline and initial cracks in Data Exploration, then
+reuse the saved dataset here. They can select separate prior and ILI candidate
+intervals, adjust the planning assumptions, and calculate net VoI as the
+minimum safe prior cost minus the minimum safe ILI-informed cost.

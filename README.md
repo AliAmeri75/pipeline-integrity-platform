@@ -68,9 +68,13 @@ Static Multiple Inspection and Excavation Planning page for the shared-data work
 1. Save the dataset in Data Exploration.
 2. Choose **Continue to Inspection Planning with this saved dataset**, or select
    Static Multiple Inspection and Excavation Planning in the same app sidebar.
+   The introduction, team, abstract and documentation are available on the
+   **Introduction** tab; **Open Planning and VoI Simulation** opens **Planning & Results**.
 3. Review the saved route, profile IDs, physical joint grouping and input tables.
    Set only planning-specific assumptions: growth/initiation, candidate intervals,
-   ILI detection/sizing, repair, safety and costs. Run the comparison.
+   ILI detection/sizing, repair, safety and costs. These controls are visible
+   in the main page under **Planning Settings**. Run the comparison. Your choices
+   survive tab changes and a visit to Data Exploration in the same session.
 
 No asset data is transferred through URLs or to a separate app. The planner uses
 an isolated, validated copy of the saved session dataset. It keeps all cracks in

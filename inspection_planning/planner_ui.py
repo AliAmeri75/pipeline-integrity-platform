@@ -5,7 +5,7 @@ inspection_planner.py; shared-data integration replaces its separate input edito
 """
 
 
-def render_planner():
+def render_planner(*, show_header=True):
     import contextlib
     import copy
     import hashlib
@@ -31,6 +31,7 @@ def render_planner():
     from planning_project import planning_handoff, planning_joints
     from profile_map import point_at_chainage
     from inspection_planning.risk_map import sliding_window_reliability, reliability_map
+    from inspection_planning.settings import PlanningSettings
 
     COLORS = {
         "navy": "#10243d",
@@ -65,9 +66,6 @@ def render_planner():
         """
         <style>
         :root { --ink:#10243d; --teal:#0f766e; --paper:#f4f2ec; --line:#d9dfdf; }
-        .stApp { background:var(--paper); color:var(--ink); }
-        [data-testid="stHeader"] { background:rgba(244,242,236,.92); }
-        [data-testid="stSidebar"] { background:#eef0ed; border-right:1px solid #cad2d2; }
         .hero { padding:1.05rem 1.3rem; margin:-.3rem 0 1rem; color:white;
                 background:var(--ink); border-bottom:4px solid var(--teal); }
         .hero small { color:#8fd1c9; font-weight:800; letter-spacing:.13em;
@@ -112,17 +110,18 @@ def render_planner():
         unsafe_allow_html=True,
     )
 
-    st.markdown(
-        """
-        <div class="hero">
-          <small>Reliability-based planning</small>
-          <h1>Static Multiple Inspection and Excavation Planning</h1>
-          <p>Compare prior excavation scheduling without ILI against pre-posterior,
-             ILI-informed scheduling using the same deterioration and cost model.</p>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
+    if show_header:
+        st.markdown(
+            """
+            <div class="hero">
+              <small>Reliability-based planning</small>
+              <h1>Static Multiple Inspection and Excavation Planning</h1>
+              <p>Compare prior excavation scheduling without ILI against pre-posterior,
+                 ILI-informed scheduling using the same deterioration and cost model.</p>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
 
     try:
@@ -141,7 +140,7 @@ def render_planner():
         [f"{handoff['pipeline_length_km']:.3f} km", str(handoff['total_joints']),
          str(handoff['cracked_joints']), str(handoff['initial_cracks'])]):
         col.metric(label, value)
-    with st.expander("Saved pipeline, defects and planning inputs", expanded=True):
+    with st.expander("Saved pipeline, defects and planning inputs", expanded=False):
         st.caption("Maximum measured depth and full measured profile length define each initial crack. "
             "All cracks within the same nominal joint are kept together. Initially crack-free joints "
             "remain in the route and can develop new cracks through the initiation model.")
@@ -579,32 +578,35 @@ def render_planner():
         )
 
 
-    with st.sidebar:
-        st.header("Analysis settings")
+    st.subheader("Planning Settings")
+    st.caption("Open a section below to edit your planning assumptions. Pipeline and crack data "
+               "come from the saved Data Exploration dataset.")
+    settings = PlanningSettings()
+    settings_left, settings_right = st.columns(2)
 
-        st.caption("Pipeline and defects: saved Data Exploration dataset.")
-
+    with settings_left:
         with st.expander("Simulation settings", expanded=True):
-            samples = st.number_input("Monte Carlo samples", 100, 10000, 1000, 100)
-            horizon = st.number_input("Analysis horizon (years)", 5, 100, 30, 5)
+            samples = settings.number_input("Monte Carlo samples", 100, 10000, 1000, 100)
+            horizon = settings.number_input("Analysis horizon (years)", 5, 100, 30, 5)
             pipe_length = handoff["pipeline_length_km"]
             st.caption(f"Saved route length: {pipe_length:.6f} km")
-            random_seed = st.number_input("Random seed", 0, 1000000, 0, 1)
+            random_seed = settings.number_input("Random seed", 0, 1000000, 0, 1)
 
+    with settings_right:
         with st.expander("Pipeline class and safety criteria", expanded=True):
-            pipeline_class = st.selectbox("Pipeline class", PIPELINE_CLASSES)
+            pipeline_class = settings.selectbox("Pipeline class", PIPELINE_CLASSES)
             class_limits = PIPELINE_CLASS_SAFETY_LIMITS.get(pipeline_class)
             widget_suffix = pipeline_class.lower().replace(" ", "_").replace("-", "_")
             if class_limits is not None:
                 st.caption("The study's annual POF limits are selected automatically for this class.")
-                max_annual_leak_pof = st.number_input(
+                max_annual_leak_pof = settings.number_input(
                     "Maximum annual leakage POF, PfL",
                     value=class_limits["max_annual_leak_pof"],
                     format="%.1e",
                     disabled=True,
                     key=f"pfl_{widget_suffix}",
                 )
-                max_annual_burst_pof = st.number_input(
+                max_annual_burst_pof = settings.number_input(
                     "Maximum annual burst POF, PfB",
                     value=class_limits["max_annual_burst_pof"],
                     format="%.1e",
@@ -620,7 +622,7 @@ def render_planner():
                 )
             else:
                 st.info("Enter the two annual POF limits for this analysis.")
-                max_annual_leak_pof = st.number_input(
+                max_annual_leak_pof = settings.number_input(
                     "Maximum annual leakage POF, PfL",
                     min_value=0.0,
                     max_value=1.0,
@@ -629,7 +631,7 @@ def render_planner():
                     format="%.1e",
                     key=f"pfl_{widget_suffix}",
                 )
-                max_annual_burst_pof = st.number_input(
+                max_annual_burst_pof = settings.number_input(
                     "Maximum annual burst POF, PfB",
                     min_value=0.0,
                     max_value=1.0,
@@ -648,32 +650,35 @@ def render_planner():
                     f"PfB ≤ {max_annual_burst_pof:.1e}."
                 )
 
+    with settings_left:
         with st.expander("Prior excavation intervals"):
-            prior_interval_start = st.number_input(
+            prior_interval_start = settings.number_input(
                 "First excavation interval (years)", 1, 100, 5, 1
             )
-            prior_interval_end = st.number_input(
+            prior_interval_end = settings.number_input(
                 "Last excavation interval (years)", 1, 100, 20, 1
             )
-            prior_interval_step = st.number_input(
+            prior_interval_step = settings.number_input(
                 "Excavation interval step (years)", 1, 50, 5, 1
             )
 
+    with settings_right:
         with st.expander("ILI inspection intervals"):
-            ili_interval_start = st.number_input(
+            ili_interval_start = settings.number_input(
                 "First ILI interval (years)", 1, 100, 5, 1
             )
-            ili_interval_end = st.number_input(
+            ili_interval_end = settings.number_input(
                 "Last ILI interval (years)", 1, 100, 20, 1
             )
-            ili_interval_step = st.number_input(
+            ili_interval_step = settings.number_input(
                 "ILI interval step (years)", 1, 50, 5, 1
             )
 
+    with settings_left:
         with st.expander("Crack initiation"):
             st.caption("Existing crack sizes and their uncertainties come from Data Exploration.")
             initial_length_std = initial_depth_std = 0.0  # Per-crack specs take precedence.
-            default_birth_rate = st.number_input(
+            default_birth_rate = settings.number_input(
                 "Crack birth rate (cracks per joint-year)",
                 min_value=0.0,
                 value=DEFAULT_CRACK_BIRTH_RATE,
@@ -689,22 +694,24 @@ def render_planner():
                 "This planning-only birth rate applies to every saved physical joint."
             )
 
+    with settings_right:
         with st.expander("Crack growth model"):
-            mean_g = st.number_input("Mean depth growth, α (mm/year)", 0.0, 10.0, 0.10, 0.01)
-            std_g = st.number_input("Std. α", 0.0, 10.0, 0.03, 0.01)
-            mean_neq = st.number_input("Mean cycles/year, Neq", 0.0, 1e7, 1000.0, 100.0)
-            std_neq = st.number_input("Std. Neq", 0.0, 1e7, 300.0, 50.0)
-            mean_c = st.number_input("Mean Paris C", 0.0, 1e-8, 2.5e-13, 1e-14, format="%.3e")
-            std_c = st.number_input("Std. Paris C", 0.0, 1e-8, 1.35e-13, 1e-14, format="%.3e")
-            delta_s = st.number_input("Stress range, ΔS", 0.01, 1000.0, 2.0, 0.1)
-            paris_m = st.number_input("Paris exponent, m", 0.1, 10.0, 3.0, 0.1)
+            mean_g = settings.number_input("Mean depth growth, α (mm/year)", 0.0, 10.0, 0.10, 0.01)
+            std_g = settings.number_input("Std. α", 0.0, 10.0, 0.03, 0.01)
+            mean_neq = settings.number_input("Mean cycles/year, Neq", 0.0, 1e7, 1000.0, 100.0)
+            std_neq = settings.number_input("Std. Neq", 0.0, 1e7, 300.0, 50.0)
+            mean_c = settings.number_input("Mean Paris C", 0.0, 1e-8, 2.5e-13, 1e-14, format="%.3e")
+            std_c = settings.number_input("Std. Paris C", 0.0, 1e-8, 1.35e-13, 1e-14, format="%.3e")
+            delta_s = settings.number_input("Stress range, ΔS", 0.01, 1000.0, 2.0, 0.1)
+            paris_m = settings.number_input("Paris exponent, m", 0.1, 10.0, 3.0, 0.1)
 
+    with settings_left:
         with st.expander("ILI measurement model — POD and sizing error"):
             st.caption(
                 "POD controls whether ILI detects a crack; sizing errors describe the "
                 "uncertainty in the reported crack dimensions."
             )
-            pod_model = st.selectbox(
+            pod_model = settings.selectbox(
                 "POD model",
                 options=[POD_DEPTH_ONLY_MODEL, POD_DEPTH_LENGTH_MODEL],
                 format_func=lambda value: {
@@ -716,7 +723,7 @@ def render_planner():
                     "crack depth and crack length."
                 ),
             )
-            q_pod = st.number_input(
+            q_pod = settings.number_input(
                 "Depth coefficient, qd (1/mm)",
                 min_value=0.0,
                 max_value=100.0,
@@ -725,7 +732,7 @@ def render_planner():
                 help="Higher qd gives a higher POD for the same crack depth.",
             )
             if pod_model == POD_DEPTH_LENGTH_MODEL:
-                q_length_pod = st.number_input(
+                q_length_pod = settings.number_input(
                     "Length coefficient, qL (1/mm)",
                     min_value=0.0,
                     max_value=10.0,
@@ -749,47 +756,50 @@ def render_planner():
                 f"Example POD for a 1 mm deep, 40 mm long crack: {example_pod:.1%}. "
                 "Calibrate the coefficients using ILI vendor qualification or excavation data."
             )
-            length_error = st.number_input(
+            length_error = settings.number_input(
                 "ILI crack-length error std. (mm)", 0.0, 100.0, 15.6, 0.1
             )
-            depth_error = st.number_input(
+            depth_error = settings.number_input(
                 "ILI crack-depth error std. (mm)", 0.0, 20.0, 0.74, 0.01
             )
 
+    with settings_right:
         with st.expander("Repair criteria 1 and 2"):
             st.markdown("**Repair criterion 1**")
-            d_rep1 = st.number_input(
+            d_rep1 = settings.number_input(
                 "Type 1 depth criterion (%WT)", 0.0, 100.0, 50.0, 1.0
             )
-            fpr_rep1 = st.number_input(
+            fpr_rep1 = settings.number_input(
                 "Type 1 pressure factor", 0.0, 10.0, 1.25, 0.05
             )
             st.divider()
             st.markdown("**Repair criterion 2**")
-            d_rep2 = st.number_input(
+            d_rep2 = settings.number_input(
                 "Type 2 depth criterion (%WT)", 0.0, 100.0, 70.0, 1.0
             )
-            fpr_rep2 = st.number_input(
+            fpr_rep2 = settings.number_input(
                 "Type 2 pressure factor", 0.0, 10.0, 1.10, 0.05
             )
 
+    with settings_right:
         with st.expander("Repair effectiveness"):
-            coat_df = st.number_input("Recoat growth factor, df1", 0.0, 1.0, 0.0, 0.05)
-            coat_period = st.number_input("Recoat effective period (years)", 0, 100, 5, 1)
-            sleeve_df = st.number_input("Sleeve growth factor, df2", 0.0, 1.0, 0.0, 0.05)
-            sleeve_period = st.number_input("Sleeve effective period (years)", 0, 100, 5, 1)
+            coat_df = settings.number_input("Recoat growth factor, df1", 0.0, 1.0, 0.0, 0.05)
+            coat_period = settings.number_input("Recoat effective period (years)", 0, 100, 5, 1)
+            sleeve_df = settings.number_input("Sleeve growth factor, df2", 0.0, 1.0, 0.0, 0.05)
+            sleeve_period = settings.number_input("Sleeve effective period (years)", 0, 100, 5, 1)
 
+    with settings_left:
         with st.expander(f"Costs (million {handoff['consequence_unit'] or 'currency units'})"):
             st.caption("The planning model sums costs for individual joint failure events. "
                        "Use the same currency for every cost; no currency conversion is performed.")
-            use_segment_costs = st.checkbox(
+            use_segment_costs = settings.checkbox(
                 "Use saved segment consequences as the loss for each joint failure event",
                 help="This is an additional cost assumption: multiple joint failures can each incur "
                      "the full saved segment loss. Leave off to use the failure costs below.")
             if use_segment_costs:
                 st.caption("Saved values are converted to millions. The failure costs below are "
                            "fallbacks only for UNKNOWN saved consequences.")
-            inspection_cost_per_km = st.number_input(
+            inspection_cost_per_km = settings.number_input(
                 "ILI inspection cost per km per event ($M/km)",
                 0.0,
                 1000.0,
@@ -801,14 +811,14 @@ def render_planner():
                     "per ILI event before discounting."
                 ),
             )
-            repair_1_cost = st.number_input(
+            repair_1_cost = settings.number_input(
                 "Type 1 intervention cost, Cr1", 0.0, 1000.0, 0.20, 0.05,
                 help="For the prior method, this is the base cost of excavating and treating a cracked joint.",
             )
-            repair_2_cost = st.number_input("Additional type 2 cost, Cr2", 0.0, 1000.0, 0.0, 0.05)
-            leak_cost = st.number_input("Leak failure cost", 0.0, 10000.0, 2.0, 0.5)
-            burst_cost = st.number_input("Burst failure cost", 0.001, 10000.0, 20.0, 1.0)
-            discount_percent = st.number_input("Discount rate (%)", 0.0, 100.0, 4.0, 0.5)
+            repair_2_cost = settings.number_input("Additional type 2 cost, Cr2", 0.0, 1000.0, 0.0, 0.05)
+            leak_cost = settings.number_input("Leak failure cost", 0.0, 10000.0, 2.0, 0.5)
+            burst_cost = settings.number_input("Burst failure cost", 0.001, 10000.0, 20.0, 1.0)
+            discount_percent = settings.number_input("Discount rate (%)", 0.0, 100.0, 4.0, 0.5)
 
     st.markdown(
         '<div class="note"><b>Prior method:</b> at each candidate interval, joints '

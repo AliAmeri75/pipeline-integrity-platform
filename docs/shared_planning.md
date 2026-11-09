@@ -6,6 +6,14 @@ The `/inspection` page runs inside the main ALIRIM Streamlit session. It reads
 are never modified by planning. A fresh browser session starts with the explicitly
 labelled synthetic sample; no persistent operator database is provided.
 
+The page opens with the restored Introduction, team, abstract and documentation.
+**Open Planning and VoI Simulation** selects **Planning & Results**. The planning
+controls are in main-page expanders under **Planning Settings**, rather than in
+the collapsible app sidebar. Both tabs render their controls consistently, and
+`settings.py` keeps a separate copy of planning choices so a visit to Data
+Exploration does not reset them. This is session storage, not durable storage.
+The Data Exploration Continue button opens Planning & Results directly.
+
 ## Input contract
 
 - Joint number = floor(chainage / joint length) + 1; the route endpoint belongs to

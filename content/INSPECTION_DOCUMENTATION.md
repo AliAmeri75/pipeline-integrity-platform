@@ -16,13 +16,17 @@ The model can represent:
 
 ## Typical workflow
 
-1. Select **Static Multiple Inspection and Excavation Planning** from the platform.
-2. Open the scheduling simulation.
-3. Enter the Monte Carlo sample size, analysis horizon, and candidate interval range.
-4. Upload a joint/crack CSV or edit the example table directly.
-5. Review growth, cost, repair, uncertainty, and safety assumptions in the sidebar.
+1. Define the pipeline, cracks, pipe properties and uncertainties in **Data Exploration**, then save the shared dataset.
+2. Select **Static Multiple Inspection and Excavation Planning** to view the introduction.
+3. Click **Open Planning and VoI Simulation**, or select the **Planning & Results** tab.
+4. Review the connected dataset and set the sample count, horizon and separate prior/ILI interval ranges.
+5. Open the **Planning Settings** sections on the main page to edit safety class, growth, initiation, POD and sizing error, repair criteria, repair effectiveness and costs.
 6. Run both optimizations and compare their schedules and lifecycle costs.
 7. Review or download the VoI, prior-excavation, and ILI-informed results.
+
+Your planning settings remain available when you return to the Introduction tab
+or visit Data Exploration in the same session. Saved input changes still require
+a new run before previous results can be used.
 
 ## Main outputs
 

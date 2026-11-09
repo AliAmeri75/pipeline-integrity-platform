@@ -144,7 +144,9 @@ def publish_project(draft):
         except (ValueError,KeyError,TypeError) as error:
             st.error('Dataset not saved: '+str(error))
     saved=get_project()
-    st.page_link('inspection_project.py',label='Continue to Inspection Planning with this saved dataset',icon=':material/calendar_month:')
+    if st.button('Continue to Inspection Planning with this saved dataset',icon=':material/calendar_month:'):
+        st.session_state['static_planning_view']='Planning & Results'
+        st.switch_page('inspection_project.py')
     try:
         if project_signature(validate_project(draft))!=project_signature(saved):
             st.warning('Unsaved dataset changes. Downstream analyses still use the last saved dataset.')

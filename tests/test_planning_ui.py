@@ -1,5 +1,6 @@
 """Run the shared-data planner and verify saved edits invalidate its results."""
 import unittest
+from unittest.mock import patch
 from copy import deepcopy
 from pathlib import Path
 from streamlit.testing.v1 import AppTest
@@ -12,6 +13,113 @@ class PlanningUITests(unittest.TestCase):
         app.session_state['assessment_project'] = project
         app.run().switch_page('inspection_project.py').run()
         return app
+
+    @staticmethod
+    def number(app, label):
+        return next(n for n in app.number_input if n.label == label)
+
+    @staticmethod
+    def choice(app, label):
+        return next(s for s in app.selectbox if s.label == label)
+
+    def test_introduction_and_editable_controls_are_easy_to_find(self):
+        app = self.app(validate_project(sample_project()))
+        self.assertEqual(len(app.exception), 0)
+        self.assertEqual([t.label for t in app.tabs][:2], ['Introduction', 'Planning & Results'])
+        self.assertEqual(app.session_state['static_planning_view'], 'Introduction')
+        content = '\n'.join(item.value for item in app.markdown)
+        self.assertIn('Mohammadali Ameri', content)
+        self.assertIn('Yong Li', content)
+        self.assertIn('uncertain crack initiation', content)
+        self.assertIn('What the application does', content)
+        self.assertIn('Static Multiple Inspection and Excavation Planning', content)
+        required = {'Monte Carlo samples', 'Mean depth growth, α (mm/year)',
+            'Type 1 depth criterion (%WT)', 'Type 2 pressure factor',
+            'Recoat growth factor, df1', 'Sleeve effective period (years)'}
+        self.assertTrue(required.issubset({n.label for n in app.main.number_input}))
+        self.assertTrue({'Pipeline class', 'POD model'}.issubset({s.label for s in app.main.selectbox}))
+        self.assertEqual(len(app.sidebar.number_input), 0)
+        next(b for b in app.button if b.label == 'Open Planning and VoI Simulation').click().run()
+        self.assertEqual(len(app.exception), 0)
+        self.assertEqual(app.session_state['static_planning_view'], 'Planning & Results')
+
+    def test_settings_survive_introduction_and_data_exploration_roundtrip(self):
+        app = self.app(validate_project(sample_project()))
+        self.number(app, 'Monte Carlo samples').set_value(200)
+        self.number(app, 'Mean depth growth, α (mm/year)').set_value(.15)
+        self.number(app, 'Type 1 depth criterion (%WT)').set_value(55.)
+        self.choice(app, 'Pipeline class').set_value('Class 3')
+        self.choice(app, 'POD model').set_value('depth_length')
+        app.run()
+        self.number(app, 'Length coefficient, qL (1/mm)').set_value(.03).run()
+        for tab in ['Planning & Results', 'Introduction', 'Planning & Results']:
+            app.session_state['static_planning_view'] = tab
+            app.run()
+            self.assertEqual(len(app.exception), 0)
+            self.assertEqual(self.number(app, 'Monte Carlo samples').value, 200)
+            self.assertEqual(self.number(app, 'Mean depth growth, α (mm/year)').value, .15)
+        app.switch_page('data_integration.py').run()
+        app.switch_page('inspection_project.py').run()
+        self.assertEqual(len(app.exception), 0)
+        self.assertEqual(self.number(app, 'Monte Carlo samples').value, 200)
+        self.assertEqual(self.number(app, 'Mean depth growth, α (mm/year)').value, .15)
+        self.assertEqual(self.number(app, 'Type 1 depth criterion (%WT)').value, 55.)
+        self.assertEqual(self.choice(app, 'Pipeline class').value, 'Class 3')
+        self.assertEqual(self.choice(app, 'POD model').value, 'depth_length')
+        self.assertEqual(self.number(app, 'Length coefficient, qL (1/mm)').value, .03)
+
+    def test_exploration_continue_opens_planning_with_the_saved_cracks(self):
+        project = validate_project(sample_project())
+        project['summary']['Feature location (m)'] = [500., 501., 8500.]
+        app = self.app(project)
+        app.switch_page('data_integration.py').run()
+        next(b for b in app.button if b.label ==
+            'Continue to Inspection Planning with this saved dataset').click().run()
+        self.assertEqual(len(app.exception), 0)
+        self.assertEqual(app.session_state['static_planning_view'], 'Planning & Results')
+        self.assertTrue(any('Connected to the saved' in e.value for e in app.success))
+        # Selecting another source in Exploration only creates a draft. The
+        # Continue button must still use the last saved two-cracked-joint asset.
+        self.assertEqual(app.session_state['assessment_project']['summary']
+            ['Feature location (m)'].tolist(), [500., 501., 8500.])
+
+    def test_changed_controls_reach_the_planning_engine(self):
+        from inspection_planning.engine import run_flexible_simulation
+        app = self.app(validate_project(sample_project()))
+        values = {'Monte Carlo samples': 100, 'Analysis horizon (years)': 5,
+            'Last excavation interval (years)': 5, 'Last ILI interval (years)': 5,
+            'Mean depth growth, α (mm/year)': .12, 'Std. α': .02,
+            'Type 1 depth criterion (%WT)': 60., 'Type 2 pressure factor': 1.15,
+            'Recoat growth factor, df1': .2, 'Recoat effective period (years)': 4,
+            'Sleeve growth factor, df2': .1, 'Sleeve effective period (years)': 7,
+            'Depth coefficient, qd (1/mm)': 1.5}
+        for label, value in values.items():
+            self.number(app, label).set_value(value)
+        self.choice(app, 'Pipeline class').set_value('Class 2')
+        self.choice(app, 'POD model').set_value('depth_length')
+        app.run()
+        self.number(app, 'Length coefficient, qL (1/mm)').set_value(.04).run()
+        with patch('inspection_planning.engine.run_flexible_simulation',
+                   wraps=run_flexible_simulation) as simulate:
+            next(b for b in app.button if b.label == 'Run prior + pre-posterior comparison').click().run()
+        self.assertEqual(len(app.exception), 0)
+        self.assertEqual(simulate.call_count, 2)
+        self.assertEqual({call.kwargs['decision_mode'] for call in simulate.call_args_list}, {'ili', 'excavation'})
+        for call in simulate.call_args_list:
+            self.assertEqual(call.args[3], 100)
+            self.assertEqual(call.args[1], 5)
+            joints, sim = call.args[4], call.args[6]
+            self.assertEqual(joints[0]['properties']['alpha']['mean'], .12)
+            self.assertEqual(joints[0]['properties']['alpha']['std'], .02)
+            self.assertEqual(sim['max_annual_leak_pof'], .001)
+            self.assertEqual(sim['max_annual_burst_pof'], .0001)
+            self.assertEqual(sim['pod_model'], 'depth_length')
+            self.assertEqual(sim['pod_depth_coefficient'], 1.5)
+            self.assertEqual(sim['pod_length_coefficient'], .04)
+            self.assertEqual(sim['D_rep1_fraction'], .6)
+            self.assertEqual(sim['FPR_rep2'], 1.15)
+            self.assertEqual(sim['df_arr'], [1, .2, .1])
+            self.assertEqual(sim['lifetime_arr'], [0, 4, 7])
 
     def test_comparison_uses_shared_data_then_invalidates_changed_snapshot(self):
         project = validate_project(sample_project())
