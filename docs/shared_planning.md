@@ -96,3 +96,41 @@ The UI fingerprints the dataset, all model inputs and both interval grids. Old
 recommendations disappear after any changed input. Comparison/prior/ILI CSVs carry
 the full dataset hash. Separate prior and ILI candidate intervals, safe/cost-optimal
 recommendations, selected-point cost components and net VoI are retained.
+
+## Larger studies and resource limits
+
+The integrated page uses `inspection_planning/execution.py` to call the same
+fixed-interval physical engine in smaller batches. There is no 10,000-sample
+entry ceiling or workload-based disabled Run button. The default batch size is
+250, reduced automatically when a conservative array estimate would exceed a
+32 MiB target. This estimate excludes other server/application overhead.
+
+Only sufficient statistics remain after each batch. Failure counts for each
+representative joint are pooled using retained-sample weights before system POF,
+annual POF and safety are recomputed. Costs are weighted by the same retained
+population. System probabilities or Safe/Unsafe flags are never averaged across
+batches. The existing group-count approximation and initial-survival conditioning
+remain in place. Threshold scheduling is not batched.
+
+The same seed and batch size reproduce a study. Changing batch size changes the
+Monte Carlo realizations, so it invalidates the results and restarts the study.
+A small accumulator retains completed batches and intervals in the current
+Streamlit session. After an interruption, Resume skips completed work. A server
+restart, a lost session, or changing inputs invalidates that checkpoint. Partial
+interval tables are downloadable, but no final optimum is selected from an
+unfinished candidate grid.
+
+Batching reduces peak memory; it does not add CPU capacity or bypass Community
+Cloud quotas. For a larger study, run the same app locally or deploy to a server
+with sufficient resources. The local workflow is:
+
+```sh
+cd pipeline-integrity-platform
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirements.txt
+python -m streamlit run streamlit_app.py
+```
+
+Open the address printed by Streamlit, upload/save the pipeline dataset, and run
+Planning & Results. Computations then use that computer's resources.

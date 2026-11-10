@@ -157,5 +157,46 @@ class PlanningUITests(unittest.TestCase):
         self.assertTrue(any('cracks only' in e.value for e in app.error))
         self.assertFalse(any(b.label=='Run prior + pre-posterior comparison' for b in app.button))
 
+    def test_large_run_has_no_app_workload_gate_or_ten_thousand_sample_cap(self):
+        app = self.app(validate_project(sample_project()))
+        self.number(app, 'Monte Carlo samples').set_value(11000)
+        self.number(app, 'Analysis horizon (years)').set_value(100)
+        app.run()
+        self.assertFalse(app.exception)
+        run = next(b for b in app.button if b.label == 'Run prior + pre-posterior comparison')
+        self.assertFalse(run.disabled)
+        self.assertNotIn('I understand this larger run may take several minutes.',
+                         [box.label for box in app.checkbox])
+
+    def test_resume_keeps_completed_intervals_and_batches(self):
+        from inspection_planning import engine
+        app = self.app(validate_project(sample_project()))
+        for label, value in {'Monte Carlo samples':100, 'Samples per batch':50,
+            'Analysis horizon (years)':5, 'First excavation interval (years)':1,
+            'Last excavation interval (years)':2, 'Excavation interval step (years)':1,
+            'First ILI interval (years)':1, 'Last ILI interval (years)':1}.items():
+            self.number(app,label).set_value(value)
+        app.run()
+        original, calls = engine.run_flexible_simulation, []
+        def interrupt(*args, **kwargs):
+            calls.append(args[3])
+            if len(calls) == 4:
+                raise RuntimeError('Test interruption between batches')
+            return original(*args, **kwargs)
+        with patch.object(engine,'run_flexible_simulation',side_effect=interrupt):
+            next(b for b in app.button if b.label=='Run prior + pre-posterior comparison').click().run()
+        job = app.session_state['integrated_planning_job']
+        self.assertEqual(len(job['prior_results']),1)
+        self.assertEqual(job['checkpoints']['excavation:2']['processed'],50)
+        app.run()
+        with patch.object(engine,'run_flexible_simulation',wraps=original) as resumed:
+            next(b for b in app.button if b.label=='Resume prior + pre-posterior comparison').click().run()
+        self.assertFalse(app.exception)
+        self.assertEqual(resumed.call_count,3)
+        study = app.session_state['integrated_planning_comparison']
+        self.assertEqual([r['interval'] for r in study['prior_results']],[1,2])
+        self.assertEqual([r['interval'] for r in study['ili_results']],[1])
+        self.assertTrue(app.session_state['integrated_planning_job']['complete'])
+
 
 if __name__=='__main__': unittest.main()

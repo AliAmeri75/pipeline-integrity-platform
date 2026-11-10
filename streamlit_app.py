@@ -3,10 +3,13 @@
 
 import streamlit as st
 
-from app_runtime import refresh_shared_input_modules
+import importlib
+import app_runtime
 from platform_ui import apply_global_style
 
-refresh_shared_input_modules()
+if app_runtime.SHARED_INPUT_REVISION != 'planning-batches-v2':
+    importlib.reload(app_runtime)
+app_runtime.refresh_shared_input_modules()
 
 
 st.set_page_config(

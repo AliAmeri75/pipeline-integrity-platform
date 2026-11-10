@@ -21,7 +21,7 @@ def render_planner(*, show_header=True):
     from inspection_planning.engine import (
         DEFAULT_MAX_ANNUAL_BURST_POF, DEFAULT_MAX_ANNUAL_LEAK_POF,
         EXCAVATION_DECISION_MODE, ILI_DECISION_MODE, POD,
-        POD_DEPTH_LENGTH_MODEL, POD_DEPTH_ONLY_MODEL, run_flexible_simulation,
+        POD_DEPTH_LENGTH_MODEL, POD_DEPTH_ONLY_MODEL,
     )
     from inspection_planning.comparison import (
         calculate_value_of_information, compare_ili_intervals_to_prior_safe,
@@ -32,6 +32,7 @@ def render_planner(*, show_header=True):
     from profile_map import point_at_chainage
     from inspection_planning.risk_map import sliding_window_reliability, reliability_map
     from inspection_planning.settings import PlanningSettings
+    from inspection_planning.execution import run_batched_flexible_simulation, effective_batch_size, EXECUTION_REVISION
 
     COLORS = {
         "navy": "#10243d",
@@ -195,25 +196,30 @@ def render_planner(*, show_header=True):
         }
 
 
-    def run_interval_study(joints, intervals, model, decision_mode):
+    def run_interval_study(joints, intervals, model, decision_mode, job):
         method_label = (
             "prior excavation"
             if decision_mode == EXCAVATION_DECISION_MODE
             else "ILI-informed inspection"
         )
-        results = []
+        result_key = 'prior_results' if decision_mode == EXCAVATION_DECISION_MODE else 'ili_results'
+        log_key = 'prior_log' if decision_mode == EXCAVATION_DECISION_MODE else 'ili_log'
+        results = job.setdefault(result_key, [])
         progress = st.progress(0, text=f"Preparing {method_label} simulations…")
         log = io.StringIO()
+        log.write(job.get(log_key, ''))
         for index, interval in enumerate(intervals):
+            if any(result['interval'] == interval for result in results):
+                continue
             sim = copy.deepcopy(model["sim"])
             sim["inspection_interval"] = interval
-            np.random.seed(model["seed"])
-            progress.progress(
-                index / len(intervals),
-                text=f"Testing {method_label}: {interval}-year interval…",
-            )
+            checkpoint = job.setdefault('checkpoints', {}).setdefault(f'{decision_mode}:{interval}', {})
+            def report(done, requested, retained):
+                progress.progress((index + done / requested) / len(intervals),
+                    text=f'{method_label.capitalize()}: {interval}-year interval, '
+                         f'{done:,}/{requested:,} samples processed ({retained:,} retained).')
             with contextlib.redirect_stdout(log):
-                raw = run_flexible_simulation(
+                raw = run_batched_flexible_simulation(
                     "equidistant",
                     model["horizon"],
                     1,
@@ -229,8 +235,10 @@ def render_planner(*, show_header=True):
                     crack_depth_std=model["initial_depth_std"],
                     track_debug=False,
                     decision_mode=decision_mode,
+                    batch_size=model['batch_size'], state=checkpoint, on_progress=report,
                 )
             results.append(unpack_result(raw, interval, decision_mode, sim))
+            job[log_key] = log.getvalue()
         progress.progress(1.0, text=f"{method_label.capitalize()} optimization complete")
         return results, log.getvalue()
 
@@ -586,7 +594,11 @@ def render_planner(*, show_header=True):
 
     with settings_left:
         with st.expander("Simulation settings", expanded=True):
-            samples = settings.number_input("Monte Carlo samples", 100, 10000, 1000, 100)
+            samples = settings.number_input("Monte Carlo samples", min_value=100, value=1000, step=100,
+                help='Total requested realizations. The app processes these in smaller batches to reduce memory use.')
+            sample_batch_size = settings.number_input('Samples per batch', min_value=1, max_value=1000,
+                value=250, step=50, help='Lower values reduce peak memory. They do not reduce the total sample count. '
+                    'Changing batch size changes the random realizations, so rerun the whole comparison.')
             horizon = settings.number_input("Analysis horizon (years)", 5, 100, 30, 5)
             pipe_length = handoff["pipeline_length_km"]
             st.caption(f"Saved route length: {pipe_length:.6f} km")
@@ -904,18 +916,18 @@ def render_planner(*, show_header=True):
         * (horizon + 1)
         * max(len(prior_intervals) + len(ili_intervals), 1)
     )
+    actual_batch_size = effective_batch_size(joints, horizon, 1, sample_batch_size)
+    st.caption(f'Memory-efficient execution: up to {min(samples,actual_batch_size):,} samples per batch. '
+        'All requested samples are processed. Completed batches and intervals can be resumed in this session. '
+        'A server restart clears session checkpoints.')
     if work_units > 2_000_000:
-        st.warning(
-            "This selection is relatively heavy for an interactive demonstration. "
-            "Reduce samples, either interval range, horizon, or the number of "
-            "individually modelled rows."
-        )
-    allow_heavy = work_units <= 8_000_000 or st.checkbox(
-        "I understand this larger run may take several minutes."
-    )
+        st.info('This is a larger calculation. Batching reduces peak memory, but CPU time still increases with '
+            'samples, defects, analysis years and interval candidates. Shared hosting may remain a bottleneck.')
 
     model = {
         "samples": int(samples),
+        "batch_size": int(actual_batch_size),
+        "execution_revision": EXECUTION_REVISION,
         "horizon": int(horizon),
         "seed": int(random_seed),
         "birth_rate": float(default_birth_rate),
@@ -969,20 +981,37 @@ def render_planner(*, show_header=True):
         not joints
         or not prior_intervals
         or not ili_intervals
-        or not allow_heavy
         or not safety_criteria_valid
     )
+    job = st.session_state.get('integrated_planning_job')
+    resumable = bool(job and job.get('run_signature') == run_signature and not job.get('complete'))
+    if resumable:
+        finished_prior, finished_ili = len(job.get('prior_results', [])), len(job.get('ili_results', []))
+        attempted = sum(checkpoint.get('processed', 0) for checkpoint in job.get('checkpoints', {}).values())
+        st.info(f'Unfinished run: {finished_prior}/{len(prior_intervals)} prior intervals and '
+            f'{finished_ili}/{len(ili_intervals)} ILI intervals completed. '
+            f'{attempted:,} candidate-samples processed. Resume to continue from the last completed batch.')
+        partial = [dict(Method=label, Interval=r['interval'], Cost=r['total_cpp'], Safe=r['is_safe'])
+            for label, key in [('Prior','prior_results'),('ILI-informed','ili_results')]
+            for r in job.get(key, [])]
+        if partial:
+            st.download_button('Download completed intervals (partial run)',
+                pd.DataFrame(partial).to_csv(index=False), 'completed_planning_intervals.csv', 'text/csv')
     if st.button(
-        "Run prior + pre-posterior comparison", type="primary", disabled=run_disabled
+        "Resume prior + pre-posterior comparison" if resumable else "Run prior + pre-posterior comparison",
+        type="primary", disabled=run_disabled, key='run_integrated_planning_comparison'
     ):
+        if not resumable:
+            job = dict(run_signature=run_signature, prior_results=[], ili_results=[], checkpoints={}, complete=False)
+            st.session_state['integrated_planning_job'] = job
         try:
             with st.spinner("Running the prior excavation schedules…"):
                 prior_results, prior_log = run_interval_study(
-                    joints, prior_intervals, model, EXCAVATION_DECISION_MODE
+                    joints, prior_intervals, model, EXCAVATION_DECISION_MODE, job
                 )
             with st.spinner("Running the ILI-informed schedules…"):
                 ili_results, ili_log = run_interval_study(
-                    joints, ili_intervals, model, ILI_DECISION_MODE
+                    joints, ili_intervals, model, ILI_DECISION_MODE, job
                 )
             st.session_state["integrated_planning_comparison"] = {
                 "prior_results": prior_results,
@@ -1002,7 +1031,10 @@ def render_planner(*, show_header=True):
                 "run_signature": run_signature,
 
             }
+            job['complete'] = True
         except Exception as exc:
+            st.error('The calculation did not finish. Completed batches are kept in this session. '
+                'Select Resume to continue; changing inputs starts a new study.')
             st.exception(exc)
 
 
