@@ -14,6 +14,41 @@ the collapsible app sidebar. Both tabs render their controls consistently, and
 Exploration does not reset them. This is session storage, not durable storage.
 The Data Exploration Continue button opens Planning & Results directly.
 
+## Entering and editing asset data
+
+Data Exploration opens on **Enter / edit defects**, starting from the saved
+dataset. Its **Defect register** table has dynamic rows and editable IDs, types,
+chainages, depths and lengths (plus width for corrosion). Rows can be added or
+deleted. The quick-entry controls add a defect at a distance, or supply the size
+for the map's pin tool. Pins within 100 m of the route are projected to the
+nearest centreline leg. Existing coloured markers select a defect for viewing.
+
+**Upload crack / corrosion data (CSV or Excel)** reads a `Defects` worksheet or
+the first sheet. Columns are `defect_id`, `chainage_m`, `depth_mm`, `length_mm`,
+and optionally `defect_type` and `width_mm`. `chainage_km` is also accepted.
+The previous standalone planner's mapped CSV format (`crack_id`, `latitude`,
+`longitude`, `depth_mm`, `length_mm`) is accepted; the preview reports GPS
+projection offsets before the user replaces the register. Location references
+are measured from the current route origin. Importing replaces the defect
+register without replacing the route or pipe-property settings.
+
+Route inputs accept manual ordered latitude/longitude rows, CSV, Excel (`Route`
+worksheet or first sheet), or one GeoJSON LineString/Feature/FeatureCollection.
+Applying a new route retains property zones, trims those beyond its end and
+extends the final zone if needed. This reuse is explained in the UI and remains
+a draft assumption to review. Defect chainages stay unchanged; saving rejects
+locations outside the new route. Use the existing segment editor to change
+properties or repartition the route explicitly.
+
+The original sample grids and measured-profile workbook upload remain available.
+Unchanged measured grids are preserved, including when only chainage is edited.
+New or resized defects have an **illustrative** shape derived from entered
+dimensions, marked both in exploration and the analysis views. The original
+workbook bytes are not changed. Analyses use the same entered maximum depth and
+length; the illustrative shape does not provide measured interaction geometry.
+Incomplete edits cannot be saved over the last valid analysis dataset. Empty
+tables remain editable, but saving still requires a defect or a dent record.
+
 ## Input contract
 
 - Joint number = floor(chainage / joint length) + 1; the route endpoint belongs to

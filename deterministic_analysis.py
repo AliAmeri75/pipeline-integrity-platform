@@ -90,6 +90,10 @@ def render_deterministic_analysis(project=None):
         st.session_state.det_selected_profile = ids[0]
     selected = st.selectbox('Selected defect — 2D/3D view',ids,key='det_selected_profile')
     row = summary.loc[summary['Profile ID'].astype(str)==selected].iloc[0]
+    illustrative=bool(profiles[selected].attrs.get('illustrative'))
+    if illustrative:
+        st.info('This defect uses entered depth and length with an illustrative shape. '
+            'The heatmap is a sensitivity illustration, not a measured inspection profile.')
     defect_type=str(row['Defect type'])
     base=segment_inputs(project,int(row['Segment ID']))
     st.markdown('**Selected defect on the pipe**')
@@ -100,7 +104,7 @@ def render_deterministic_analysis(project=None):
         if chosen['Severe']:
             st.error(SEVERE_LABEL+' '+chosen['Screening reason'])
     if defect_type=='Crack':
-        st.subheader('Measured depth and CorLAS burst pressure')
+        st.subheader(('Illustrative' if illustrative else 'Measured')+' depth and CorLAS burst pressure')
         st.caption('Uses the saved properties of this defect’s segment. Absolute measured depths are '
                    'preserved when assessment wall thickness differs from the inspection workbook.')
         try:
@@ -114,7 +118,7 @@ def render_deterministic_analysis(project=None):
             cards[1].metric('Minimum CorLAS burst pressure',
                 f'{lowest["Burst resistance pressure (psi)"]:,.1f} psi' if lowest else 'Unavailable',border=True)
             cards[2].metric('Grid cells evaluated',f'{int((cells.Status=="Calculated").sum())} / {len(cells)}',border=True)
-            st.caption('Every calculated cell uses its measured depth, the full profile length '
+            st.caption('Every calculated cell uses its profile depth, the full profile length '
                 f'({row["Profile length (mm)"]:.2f} mm), and the same pipe/material inputs. '
                 'This is a depth-sensitivity screening map, not a set of independent cell-sized cracks or a profile-interaction analysis. '
                 'Black crosses mark the minimum calculated FPR.')
@@ -134,9 +138,9 @@ def render_deterministic_analysis(project=None):
     try:
         st.plotly_chart(measured_profile_on_pipe_figure(profiles[selected],row['Wall thickness (mm)'],
             row['Outside diameter (mm)'],selected,defect_type),width='stretch',key='det_pipe_'+signature+'_'+selected)
-        st.caption('The pipe view uses the same measured-profile renderer as Data Exploration. '
-                   'Surface depression is visually enlarged; colours and tooltips retain the measured depth.')
-        with st.expander('Linked measured 2D and 3D profile'):
+        st.caption('The pipe view uses the same profile as Data Exploration. '
+                   'Surface depression is visually enlarged; colours and tooltips retain the input depth.')
+        with st.expander('Linked '+('illustrative' if illustrative else 'measured')+' 2D and 3D profile'):
             render_linked_measured_profile(profiles[selected],row['Wall thickness (mm)'],selected)
     except ValueError as error:
         st.error(str(error))

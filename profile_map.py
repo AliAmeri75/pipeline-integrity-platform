@@ -229,6 +229,7 @@ def render_profile_location_map(
     summary: pd.DataFrame,
     selected_profile_id: str,
     *, selection_key: str | None = None, shared_project: bool = False,
+    on_add_defect=None, on_route_change=None,
 ) -> pd.DataFrame:
     """Render an editable pipeline route with profile locations and joint IDs."""
 
@@ -244,20 +245,28 @@ def render_profile_location_map(
         <div class="notice"><strong>How to use the map.</strong><br>
         <strong>1.</strong> Draw or replace the pipeline centreline with the line tool.<br>
         <strong>2.</strong> Enter the chainage represented by the start of the drawn line.<br>
-        <strong>3.</strong> The app places every uploaded profile at its recorded chainage
+        <strong>3.</strong> The app places each defect at its entered or uploaded chainage
         and groups profiles within the same nominal joint length.</div>
         """,
         unsafe_allow_html=True,
     )
+    if on_add_defect is not None:
+        st.caption('To add a defect, select the pin tool and click within 100 m of the pipeline. '
+            'Its size comes from Add a defect by distance or map pin above. '
+            'Clicking an existing coloured defect marker selects its profile.')
 
     action_1, action_2, action_3 = st.columns([1, 1, 2])
     if action_1.button("Load 10 km sample route" if shared_project else "Load Edmonton sample route", use_container_width=True):
         if shared_project:
             from assessment_project import sample_route
-            st.session_state[route_key] = sample_route()
+            new_route = sample_route()
         else:
-            st.session_state[route_key] = copy.deepcopy(EDMONTON_SAMPLE_ROUTE)
-        st.session_state[revision_key] += 1
+            new_route = copy.deepcopy(EDMONTON_SAMPLE_ROUTE)
+        if on_route_change is not None:
+            on_route_change(new_route)
+        else:
+            st.session_state[route_key] = new_route
+            st.session_state[revision_key] += 1
         st.rerun()
     if action_2.button("Clear pipeline route", use_container_width=True):
         st.session_state[route_key] = []
@@ -405,7 +414,7 @@ def render_profile_location_map(
         export=False,
         draw_options={
             "polyline": {"shapeOptions": {"color": "#16a6a1", "weight": 6}},
-            "marker": False,
+            "marker": {} if on_add_defect is not None else False,
             "polygon": False,
             "rectangle": False,
             "circle": False,
@@ -424,9 +433,28 @@ def render_profile_location_map(
     )
     new_route = latest_route_from_drawings(map_result.get("all_drawings") or [])
     if new_route and new_route != route:
-        st.session_state[route_key] = new_route
-        st.session_state[revision_key] += 1
+        if on_route_change is not None:
+            on_route_change(new_route)
+        else:
+            st.session_state[route_key] = new_route
+            st.session_state[revision_key] += 1
         st.rerun()
+    if on_add_defect is not None:
+        for drawing in reversed(map_result.get('all_drawings') or []):
+            geometry=drawing.get('geometry',{})
+            if geometry.get('type')!='Point':
+                continue
+            pin_token=repr((st.session_state[revision_key],geometry))
+            if pin_token!=st.session_state.get('data_exploration_handled_defect_pin'):
+                st.session_state.data_exploration_handled_defect_pin=pin_token
+                try:
+                    longitude,latitude=geometry['coordinates'][:2]
+                    on_add_defect(latitude,longitude)
+                    st.session_state[revision_key]+=1
+                    st.rerun()
+                except (ValueError,TypeError,KeyError,IndexError) as error:
+                    st.error('Defect not added: '+str(error))
+            break
     if selection_key is not None:
         clicked_profile=profile_from_map_click(mapped,map_result)
         clicked=map_result.get('last_object_clicked')

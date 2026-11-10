@@ -77,6 +77,7 @@ def measured_profile_figures(
 ) -> tuple[go.Figure, go.Figure, list[float], list[float], np.ndarray, str]:
     """Create exact measured 2D and 3D profile figures."""
 
+    label = 'Illustrative' if profile.attrs.get('illustrative') else 'Measured'
     x_values, y_values, depth, unit = measured_depth_grid(
         profile, wall_thickness_mm
     )
@@ -118,7 +119,7 @@ def measured_profile_figures(
         )
     )
     heatmap.update_layout(
-        title=f"Measured 2D profile · {profile_id}",
+        title=f"{label} 2D profile · {profile_id}",
         xaxis_title="Axial distance from profile start (mm)",
         yaxis_title="Circumferential distance (mm)",
         height=440,
@@ -161,7 +162,7 @@ def measured_profile_figures(
         )
     )
     surface.update_layout(
-        title=f"Measured 3D surface · {profile_id}",
+        title=f"{label} 3D surface · {profile_id}",
         height=440,
         margin={"l": 0, "r": 0, "t": 55, "b": 0},
         paper_bgcolor="rgba(0,0,0,0)",
@@ -187,6 +188,7 @@ def linked_measured_profile_html(
 ) -> str:
     """Return a linked 2D/3D explorer for the actual measured profile grid."""
 
+    label = 'illustrative' if profile.attrs.get('illustrative') else 'measured'
     heatmap, surface, x_values, y_values, depth, unit = measured_profile_figures(
         profile, wall_thickness_mm, profile_id
     )
@@ -227,9 +229,9 @@ def linked_measured_profile_html(
   </style>
 </head>
 <body>
-  <section class="shell" aria-label="Linked measured two-dimensional and three-dimensional defect views">
+  <section class="shell" aria-label="Linked {label} two-dimensional and three-dimensional defect views">
     <div class="header">
-      <span class="title">Linked measured-profile explorer</span>
+      <span class="title">Linked {label}-profile explorer</span>
       <span class="hint">Move over either view—the gold point follows in both.</span>
     </div>
     <div id="error">The interactive figures could not be loaded. Please refresh the page.</div>
@@ -294,6 +296,7 @@ def measured_profile_on_pipe_figure(
 ) -> go.Figure:
     """Place the measured profile on a schematic cylindrical pipe surface."""
 
+    label = 'Illustrative' if profile.attrs.get('illustrative') else 'Measured'
     x_values, y_values, depth, unit = measured_depth_grid(
         profile, wall_thickness_mm
     )
@@ -363,9 +366,9 @@ def measured_profile_on_pipe_figure(
             colorbar={"title": f"Depth<br>({unit})"},
             hovertemplate=(
                 "Axial: %{x:.1f} mm<br>"
-                f"Measured depth: %{{surfacecolor:.3f}} {unit}<extra></extra>"
+                f"{label} depth: %{{surfacecolor:.3f}} {unit}<extra></extra>"
             ),
-            name="Measured profile",
+            name=f"{label} profile",
         )
     )
     figure.update_layout(

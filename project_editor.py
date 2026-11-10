@@ -16,10 +16,10 @@ def get_project():
     return st.session_state.assessment_project
 
 
-def render_project_editor(summary,profiles,content,is_sample,*,initial_project=None,source_type=''):
+def render_project_editor(summary,profiles,content,is_sample,*,initial_project=None,source_type='',source_token=None):
     """Return edited draft; publication is explicit, after route review."""
     current=get_project()
-    token=(('shared-sample-v3-'+initial_project['source'] if initial_project is not None else
+    token=source_token or (('shared-sample-v3-'+initial_project['source'] if initial_project is not None else
         'shared-sample-v2-uniform-pipe') if is_sample else
         hashlib.sha256(content+str(initial_project.get('source','') if initial_project else source_type).encode()).hexdigest())
     if st.session_state.get('project_source_token')!=token:
@@ -46,15 +46,10 @@ def render_project_editor(summary,profiles,content,is_sample,*,initial_project=N
     st.caption('Chainage is distance from the route origin. Property segments may have any positive length; '
         'they must cover the entire route without gaps or overlaps. Segment IDs are not joint IDs.')
     tabs=st.tabs(['Defect register','Pipe segments & consequences','Uncertainties','Dent register'],
-        default='Dent register' if draft['summary'].empty else 'Defect register')
+        default='Dent register' if draft['summary'].empty and not draft.get('dent_register',pd.DataFrame()).empty else 'Defect register')
     with tabs[0]:
-        st.caption('Edit crack/corrosion chainage and type; measured profile dimensions remain unchanged. '
-            'Dent displacement is entered in the separate Dent register. The sample datasets use '
-            'a fictional 10 km pipe, 914.4 mm OD and 11.8 mm WT throughout.')
-        draft['summary']=st.data_editor(draft['summary'],hide_index=True,width='stretch',
-            disabled=[c for c in draft['summary'].columns if c not in ['Feature location (m)','Defect type']],
-            key='project_defects_'+token,column_config={
-                'Defect type':st.column_config.SelectboxColumn(options=['Crack','Corrosion / metal loss'])})
+        from exploration_input_ui import render_defect_inputs
+        render_defect_inputs(draft,token)
     with tabs[1]:
         st.caption('Nominal values below are also the means for probabilistic analysis. '
             'diameter_in: outside diameter in inches; wall_thickness_mm: WT; pressure and strengths: psi. '
@@ -127,7 +122,6 @@ def render_project_editor(summary,profiles,content,is_sample,*,initial_project=N
             'Do not reinterpret crack/corrosion grids as dent measurements. Combined defects are flagged, not assessed.')
         draft['dent_register']=st.data_editor(draft.get('dent_register',empty_dent_register()),
             num_rows='dynamic',hide_index=True,width='stretch',key='project_dent_register_'+token)
-    draft['profiles']=profiles
     return draft
 
 
@@ -137,6 +131,8 @@ def publish_project(draft):
     draft['joint_length_m']=float(st.session_state.get('project_joint_length',12.))
     if st.button('Save shared dataset for all analyses',type='primary'):
         try:
+            if draft.get('_defect_input_error'):
+                raise ValueError(draft['_defect_input_error'])
             project=validate_project(draft)
             st.session_state.assessment_project=project
             st.session_state.prepared_profile_route=project['route']
@@ -148,6 +144,8 @@ def publish_project(draft):
         st.session_state['static_planning_view']='Planning & Results'
         st.switch_page('inspection_project.py')
     try:
+        if draft.get('_defect_input_error'):
+            raise ValueError(draft['_defect_input_error'])
         if project_signature(validate_project(draft))!=project_signature(saved):
             st.warning('Unsaved dataset changes. Downstream analyses still use the last saved dataset.')
     except (ValueError,KeyError,TypeError):

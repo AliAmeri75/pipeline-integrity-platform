@@ -552,10 +552,9 @@ def summary_xlsx(summary: pd.DataFrame) -> bytes:
         "Measured profile cells": "0",
     }
     for column_number, column_name in enumerate(summary.columns, start=1):
-        width = max(
-            len(str(column_name)),
-            *(len(str(value)) for value in summary[column_name].head(200) if not pd.isna(value)),
-        )
+        width = max([len(str(column_name))] + [
+            len(str(value)) for value in summary[column_name].head(200) if not pd.isna(value)
+        ])
         worksheet.column_dimensions[worksheet.cell(1, column_number).column_letter].width = min(max(width + 2, 12), 25)
         if column_name in numeric_formats:
             for row_number in range(2, len(summary) + 2):

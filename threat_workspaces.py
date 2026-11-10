@@ -109,10 +109,13 @@ def render_corrosion_workspace(project):
             selected=st.selectbox('Corrosion profile — 2D/3D',p['summary']['Profile ID'].astype(str),key='corr_profile')
             summary,profiles=assessment_geometry(p)
             row=summary[summary['Profile ID'].astype(str)==selected].iloc[0]
+            illustrative=bool(profiles[selected].attrs.get('illustrative'))
+            if illustrative:
+                st.info('Illustrative corrosion shape from entered dimensions; no measured depth grid was supplied.')
             from profile_visuals import measured_profile_on_pipe_figure,render_linked_measured_profile
             st.plotly_chart(measured_profile_on_pipe_figure(profiles[selected],row['Wall thickness (mm)'],
                 row['Outside diameter (mm)'],selected,'Corrosion / metal loss'),width='stretch',key='corrosion_pipe')
-            with st.expander('Linked measured 2D and 3D corrosion profile'):
+            with st.expander('Linked '+('illustrative' if illustrative else 'measured')+' 2D and 3D corrosion profile'):
                 render_linked_measured_profile(profiles[selected],row['Wall thickness (mm)'],selected)
     with rel:
         if p['summary'].empty:

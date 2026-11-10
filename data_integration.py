@@ -3,15 +3,14 @@
 from __future__ import annotations
 
 import altair as alt
-import json
 import pandas as pd
 import streamlit as st
 
 from platform_ui import render_project_hero
 from exploration_map import render_exploration_map
-from project_editor import render_project_editor,publish_project
+from project_editor import get_project,render_project_editor,publish_project
+from exploration_input_ui import render_route_inputs,add_map_defect,set_route
 from assessment_project import validate_project,assessment_geometry
-from profile_map import route_length_km
 from profile_data import (
     ProfileFormatError,
     maximum_depth_envelope,
@@ -40,9 +39,9 @@ render_project_hero(
 
 st.markdown(
     """
-    <div class="notice"><strong>What this module does.</strong> It reads the profile
-    sheets without changing the source workbook. Link each feature to its route chainage
-    and pipe-property segment, review its measured profile, and save the common assessment dataset.</div>
+    <div class="notice"><strong>Start here.</strong> Enter or edit defect sizes in a table,
+    upload a CSV/Excel size register, or load measured profile sheets. Draw, enter or upload
+    the pipeline route, then save this dataset for all analyses.</div>
     """,
     unsafe_allow_html=True,
 )
@@ -52,7 +51,7 @@ st.caption('Choosing a source creates a separate draft, not an appended dataset.
     'The active analysis dataset changes only when you click Save shared dataset for all analyses.')
 data_source = st.radio(
     "Data source",
-    ["Sample crack profiles", "Sample corrosion profiles", "Sample dent data",
+    ["Enter / edit defects", "Sample crack profiles", "Sample corrosion profiles", "Sample dent data",
      "Upload your workbook", "Upload dent CSV / Excel"],
     horizontal=True,
     label_visibility="collapsed",
@@ -63,7 +62,14 @@ if data_source in ('Sample dent data','Upload dent CSV / Excel'):
     render_dent_exploration(is_sample=data_source=='Sample dent data')
     st.stop()
 
-if data_source == "Sample crack profiles":
+if data_source == "Enter / edit defects":
+    current=get_project()
+    source_content=current.get('workbook',b'')
+    source_name=current['source']
+    summary,profiles=current['summary'].copy(),current['profiles']
+    st.info('Edit the defect register below, upload a size table, or add defects by distance or map pin. '
+        'The editor starts from your saved dataset.')
+elif data_source == "Sample crack profiles":
     source_content = synthetic_sample_workbook()
     source_name = "sample_crack_profiles.xlsx"
     st.info("Sample data for crack profiles.")
@@ -108,54 +114,55 @@ if source_content is None:
     )
     st.stop()
 
-try:
-    with st.spinner("Reading profile grids…"):
-        summary, profiles = _read_profiles(source_content)
-except ProfileFormatError as error:
-    st.error(str(error))
-    st.stop()
+if data_source != 'Enter / edit defects':
+    try:
+        with st.spinner("Reading profile grids…"):
+            summary, profiles = _read_profiles(source_content)
+    except ProfileFormatError as error:
+        st.error(str(error))
+        st.stop()
 
 if data_source in ('Sample crack profiles','Sample corrosion profiles'):
     st.success(f"Loaded {len(summary):,} sample {'crack' if data_source=='Sample crack profiles' else 'corrosion'} profiles.")
-else:
+elif data_source != 'Enter / edit defects':
     st.success(f"Detected {len(summary):,} feature profiles in {source_name}.")
-defect_type = ('Crack' if data_source=='Sample crack profiles' else
-    'Corrosion / metal loss' if data_source=='Sample corrosion profiles' else uploaded_defect_type)
-summary = summary_for_defect_type(summary, defect_type)
+if data_source != 'Enter / edit defects':
+    defect_type = ('Crack' if data_source=='Sample crack profiles' else
+        'Corrosion / metal loss' if data_source=='Sample corrosion profiles' else uploaded_defect_type)
+    summary = summary_for_defect_type(summary, defect_type)
+else:
+    defect_type='Crack'
 st.session_state["prepared_profile_workbook"] = source_content
 st.session_state["prepared_profile_source_name"] = source_name
 st.session_state["prepared_profile_defect_type"] = defect_type
-with st.expander('Define shared defects, pipe segments and uncertainties',expanded=False):
-    if data_source=='Sample corrosion profiles':
+with st.expander('Define shared defects, pipe segments and uncertainties',expanded=True):
+    if data_source=='Enter / edit defects':
+        draft=render_project_editor(summary,profiles,source_content,True,
+            initial_project=current,source_token='editable-defect-register-v1')
+    elif data_source=='Sample corrosion profiles':
         from exploration_datasets import corrosion_project
         draft=render_project_editor(summary,profiles,source_content,True,initial_project=corrosion_project(source_content))
     else:
         draft=render_project_editor(summary,profiles,source_content,data_source=='Sample crack profiles',
             source_type=defect_type)
 summary=draft['summary']
+profiles=draft['profiles']
 
 profile_ids = summary["Profile ID"].astype(str).tolist()
 selection_key='exploration_selected_profile'
 if st.session_state.get(selection_key) not in profile_ids:
-    st.session_state[selection_key]=profile_ids[0]
+    st.session_state[selection_key]=profile_ids[0] if profile_ids else ''
 st.subheader('Pipeline and defect locations')
-st.write('Start with the pipeline map. Click a defect marker or choose a profile below to inspect its 3D shape on the pipe and its measured depth profile.')
-with st.expander('Upload a pipeline centreline (GeoJSON)'):
-    route_upload=st.file_uploader('Route LineString or LineString Feature',type=['geojson','json'],key='shared_route_upload')
-    if route_upload is not None and st.button('Apply uploaded centreline'):
-        try:
-            document=json.loads(route_upload.getvalue())
-            geometry=document.get('geometry',document)
-            if geometry['type']!='LineString': raise ValueError('Use a single GeoJSON LineString.')
-            route=[[float(lat),float(lon)] for lon,lat in geometry['coordinates']]
-            if route_length_km(route)<=0: raise ValueError('The route must have positive length.')
-            st.session_state.data_exploration_map_route=route
-            st.session_state.data_exploration_map_revision=st.session_state.get('data_exploration_map_revision',0)+1
-            st.rerun()
-        except (ValueError,TypeError,KeyError) as error:
-            st.error('Route not applied: '+str(error))
-render_exploration_map(summary,st.session_state[selection_key],selection_key=selection_key,shared_project=True)
+st.write('Draw the pipeline or enter/upload its coordinates. Use the pin tool to add a defect with the dimensions '
+    'entered above. Click an existing defect marker to inspect its shape below.')
+render_route_inputs(draft)
+render_exploration_map(summary,st.session_state[selection_key],selection_key=selection_key,shared_project=True,
+    on_add_defect=lambda lat,lon:add_map_defect(draft,lat,lon),
+    on_route_change=lambda route:set_route(draft,route))
 publish_project(draft)
+if not profile_ids:
+    st.info('Add a defect in the table, by distance, by map pin or by CSV/Excel upload to see its profile.')
+    st.stop()
 selected_profile_id = st.selectbox(
     "Feature profile",
     profile_ids,
@@ -177,11 +184,15 @@ try:
     st.caption(f'3D preview: property segment {int(selected_row["Segment ID"])} · '
         f'WT {selected_row["Wall thickness (mm)"]:.3f} mm · '
         f'outside diameter {selected_row["Outside diameter (mm)"]:.1f} mm. '
-        'Measured depth in mm is unchanged; workbook %WT refers to its original inspection WT. Save drafts before analysis.')
+        'Depth in mm is unchanged; profile %WT refers to its original input WT. Save drafts before analysis.')
 except (ValueError,KeyError,TypeError):
     st.caption('Showing inspection-workbook geometry until the draft segment register is valid.')
 
 st.subheader("Selected profile")
+illustrative=bool(selected_profile.attrs.get('illustrative'))
+if illustrative:
+    st.info('Illustrative shape from entered depth and length. No measured profile grid was supplied for this defect. '
+        'The analyses use the entered dimensions and the saved segment properties.')
 metric_columns = st.columns(4)
 metric_columns[0].metric("Feature location", f"{selected_row['Feature location (m)']:,.3f} m")
 metric_columns[1].metric("Maximum depth", f"{selected_row['Maximum depth (%WT)']:,.1f}% WT")
@@ -199,9 +210,8 @@ st.caption(
 
 st.markdown("#### 3D pipe and selected defect")
 st.caption(
-    "This view places the measured grid on a pipe for context. The surface "
-    "depression is enlarged so it can be seen; colour and tooltips retain the "
-    "measured depth."
+    "This view places the profile on a pipe for context. The surface "
+    "depression is enlarged so it can be seen; colour and tooltips retain the input depth."
 )
 st.plotly_chart(
     measured_profile_on_pipe_figure(
@@ -214,10 +224,10 @@ st.plotly_chart(
     width="stretch",
 )
 
-st.markdown("#### Measured 2D and 3D profile")
+st.markdown('#### '+('Illustrative' if illustrative else 'Measured')+' 2D and 3D profile')
 st.write(
-    "Move the pointer over either figure to inspect the same measured cell in both "
-    "views. Colour and the readout show the recorded depth; the 3D vertical scale is "
+    "Move the pointer over either figure to inspect the same location in both "
+    "views. Colour and the readout show depth; the 3D vertical scale is "
     "enlarged only to make the shape visible."
 )
 render_linked_measured_profile(
@@ -243,7 +253,10 @@ profile_area = (
 st.altair_chart(profile_area, width="stretch")
 
 st.subheader("Size and location output")
-if defect_type == "Crack":
+if illustrative:
+    st.caption('Size-only records use the entered maximum depth and length. '
+        'Their displayed shapes are illustrative; unchanged measured profiles retain their original grids.')
+elif defect_type == "Crack":
     st.caption(
         "Maximum crack depth is calculated from the profile grid. Depth in millimetres uses "
         "the recorded wall thickness. Crack outputs report depth and length; width is not included."
