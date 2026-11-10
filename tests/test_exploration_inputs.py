@@ -181,6 +181,16 @@ class EditableInputUITests(unittest.TestCase):
         self.assertEqual(len(app.session_state.project_draft['summary']), 4)
         self.assertEqual(project_signature(app.session_state.assessment_project), sig)
 
+    def test_live_deployment_refreshes_an_older_project_editor(self):
+        import project_editor
+        def old_editor(summary, profiles, content, is_sample, *, initial_project=None, source_type=''):
+            raise AssertionError('The old helper must be refreshed before the updated page uses it.')
+        with patch.object(project_editor, 'render_project_editor', old_editor), patch.object(
+                project_editor, '_shared_input_revision', 'old-deployment', create=True):
+            app = self.app()
+            self.assertFalse(app.exception)
+            self.assertEqual(app.radio[0].value, 'Enter / edit defects')
+
     def test_table_edits_and_deletions_change_map_and_save(self):
         app = self.app()
         token = app.session_state.project_source_token

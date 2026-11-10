@@ -3,7 +3,10 @@
 
 import streamlit as st
 
+from app_runtime import refresh_shared_input_modules
 from platform_ui import apply_global_style
+
+refresh_shared_input_modules()
 
 
 st.set_page_config(
