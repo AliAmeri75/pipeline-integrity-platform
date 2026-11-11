@@ -105,9 +105,9 @@ entry ceiling or workload-based disabled Run button. The default batch size is
 250, reduced automatically when a conservative array estimate would exceed a
 32 MiB target. This estimate excludes other server/application overhead.
 
-Only sufficient statistics remain after each batch. Failure counts for each
-representative joint are pooled using retained-sample weights before system POF,
-annual POF and safety are recomputed. Costs are weighted by the same retained
+Only sufficient statistics remain after each batch. Joint first-event CDFs and
+operating-step failure counts are pooled using retained-sample weights before
+system POF, annual POF and safety are recomputed. Costs are weighted by the same retained
 population. System probabilities or Safe/Unsafe flags are never averaged across
 batches. The existing group-count approximation and initial-survival conditioning
 remain in place. Threshold scheduling is not batched.
@@ -134,3 +134,67 @@ python -m streamlit run streamlit_app.py
 
 Open the address printed by Streamlit, upload/save the pipeline dataset, and run
 Planning & Results. Computations then use that computer's resources.
+
+## Probability audit: annual operating events and cumulative history
+
+The planner now separates three quantities that must not be interchanged:
+
+1. A joint's cumulative POF is the fraction of retained realizations with at
+   least one failure of that mode by time `t`. A realization contributes once
+   to each mode's CDF, even if it later fails again after replacement.
+2. A joint's operating-step POF is the fraction of retained realizations that
+   experience that mode in the current time step. Repeat failures are included
+   in the step in which they occur. Each realization has at most one joint
+   failure event per step in the current physical model.
+3. Expected cumulative event counts and lifecycle costs include every failure,
+   including repeat events. Expected event counts can exceed one; POF cannot.
+
+This distinction follows the difference between lifetime probabilities and
+repairable-system event counts described in the
+[NIST reliability handbook](https://www.itl.nist.gov/div898/handbook/apr/section1/apr125.htm).
+
+For each failure mode and operating step, the existing independent-joint
+assumption combines the joint probabilities before spatial normalization:
+
+```text
+q_system[t] = 1 - product((1 - q_joint[j,t]) ** physical_joint_count[j])
+annual_route_average[t] = q_system[t] / time_step_years[t] / route_length_km
+```
+
+For the UI's one-year steps and a 10 km route this is `q_system[t] / 10`, once.
+There is no extra division by past cumulative system survival. The earlier
+implementation accumulated repeat events into a purported CDF and used its
+conditional increments; that could inflate late-year values or produce POF above
+one. Separately, calculating from rounded cumulative system POF could lose
+increments when the reported CDF rounded to one. Current operating-step series
+products are evaluated through log survival.
+
+Whole-route cumulative POF remains an unnormalized probability in `[0, 1]`.
+The normalized annual route average is a separate study metric; dividing by
+length does not establish compliance with a critical-1-km criterion. The map
+independently combines operating-step joint probabilities in its 1 km windows.
+Legacy external map results with only first-event CDFs retain the conditional-
+increment interpretation; current integrated results always supply step POFs.
+
+The UI's **Why an interval is Safe or Unsafe** table reports the peak annual
+leakage/burst values, their years, and the first threshold exceedance for every
+candidate. Joint/group diagnostics retain the physical-joint multiplicity and
+show a rough one-event sampling increment. Those group values are evaluated
+alone over the full route length and cannot be added. A one-event increment or
+a zero observed event count is not a confidence interval or proof of a rare
+failure target.
+
+Smaller initial cracks do not remove future crack initiation from initially
+clean joints, the sizing/property uncertainties, or later-year growth. The
+current new-crack size rule remains depth 0.1–0.4 mm and full length 40–45 mm.
+CorLAS, growth, repair decisions and the inherited initiation-time sampler were
+not recalibrated by this probability-accounting audit. Birth counts are Poisson;
+the inherited rejection rule for their conditional times is biased toward later
+times, rather than the uniform conditional times of a homogeneous Poisson
+process. That physical-model assumption needs a separate review before an HPP
+interpretation or industrial validation can be claimed. Initial-survival
+conditioning, independent-joint/group approximations and annual time
+discretization also remain model assumptions.
+
+The probability execution revision is part of the saved run signature. Previous
+results/checkpoints are invalidated and the comparison must be rerun.

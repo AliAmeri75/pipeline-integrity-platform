@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """Clearer and lighter version of ``Simp_Sys_Thresh_J3.py``.
 
-The reliability equations, repair rules, and threshold definition are retained.
+The physical assessment and repair rules are retained. Cumulative POF counts
+each realization once per failure mode. Annual operating POF uses failures in
+that year, including repeat events after replacement, separately from the CDF.
 The main reductions in run time and memory are structural:
 
 * equidistant analyses do not create rollback copies that they never use;
@@ -103,8 +105,9 @@ DEFAULT_MAX_ANNUAL_BURST_POF = 1e-3
 def exp_num(t, birth_rate):
     """Return the expected new cracks in one joint over ``t`` years.
 
-    ``birth_rate`` is measured in cracks per joint-year. Crack initiation is
-    represented by a homogeneous Poisson process.
+    ``birth_rate`` is measured in cracks per joint-year and sets a Poisson
+    count mean. Conditional times retain the separate legacy sampling rule in
+    ``generate_initiation_times``; that rule is not a validated HPP sampler.
     """
     return birth_rate * t
 
@@ -489,6 +492,76 @@ def calculate_grouped_system_pofs(leak_pofs, burst_pofs, counts):
     )
 
 
+def _grouped_log_survival(joint_pofs, counts, times, pipe_length_km, *, cumulative):
+    """Validate joint histories before combining independent survival products."""
+    probabilities = np.asarray(joint_pofs, dtype=float)
+    multiplicities = np.asarray(counts, dtype=float)
+    times = np.asarray(times, dtype=float)
+    length = float(pipe_length_km)
+    if (times.ndim != 1 or not len(times) or not np.isfinite(times).all()
+            or np.any(np.diff(times) <= 0)):
+        raise ValueError('Result times must be finite and strictly increasing.')
+    if (multiplicities.ndim != 1 or probabilities.ndim != 2
+            or probabilities.shape != (len(multiplicities), len(times))
+            or not np.isfinite(multiplicities).all()
+            or np.any(multiplicities < 0) or np.any(multiplicities != np.floor(multiplicities))):
+        raise ValueError('Provide one nonnegative integer count per joint probability history.')
+    if (not np.isfinite(probabilities).all() or np.any(probabilities < 0)
+            or np.any(probabilities > 1)):
+        raise ValueError('Joint probabilities must be finite and within [0, 1]; '
+                         'repeat-failure event counts are not probabilities.')
+    if cumulative and np.any(np.diff(probabilities, axis=1) < -1e-12):
+        raise ValueError('Joint cumulative probabilities must be nondecreasing.')
+    if not np.isfinite(length) or length <= 0:
+        raise ValueError('Pipeline length must be positive and finite.')
+    if cumulative:
+        probabilities = np.maximum.accumulate(probabilities, axis=1)
+    represented = multiplicities > 0
+    with np.errstate(divide='ignore'):
+        log_survival = np.sum(np.log1p(-probabilities[represented])
+            * multiplicities[represented, None], axis=0)
+    return log_survival, times, length
+
+
+def grouped_system_pof_history(joint_pofs, counts, times, pipe_length_km):
+    """Cumulative first-of-mode system POF and its conditional increments.
+
+    Useful for a first-event survival analysis. Operating/repairable-system
+    annual safety must instead use ``grouped_annual_failure_pofs`` so that later
+    failures after replacement continue to count in the year they occur.
+    """
+    log_survival, times, length = _grouped_log_survival(
+        joint_pofs, counts, times, pipe_length_km, cumulative=True)
+    system = -np.expm1(log_survival)
+    annual = np.zeros(len(times))
+    previous = log_survival[:-1]
+    valid = np.isfinite(previous)
+    difference = np.zeros_like(previous)
+    np.subtract(log_survival[1:], previous, out=difference, where=valid)
+    increment = np.zeros_like(previous)
+    increment[valid] = -np.expm1(np.minimum(difference[valid], 0.))
+    annual[1:] = increment / np.diff(times) / length
+    return system, annual
+
+
+def grouped_annual_failure_pofs(joint_step_pofs, counts, times, pipe_length_km):
+    """Combine actual joint failure probabilities in each operating time step.
+
+    At most one leak or burst per joint realization is recorded in a simulation
+    step. Independent physical joints are combined with a series product; the
+    resulting step probability is divided once by the step duration and full
+    route length. There is no division by past cumulative system survival.
+    This route-average metric is not a worst-1-km assessment or an exact spatial
+    rescaling of a nonuniform pipeline's probability to a one-km segment.
+    """
+    log_survival, times, length = _grouped_log_survival(
+        joint_step_pofs, counts, times, pipe_length_km, cumulative=False)
+    step_probability = -np.expm1(log_survival)
+    annual = np.zeros(len(times))
+    annual[1:] = step_probability[1:] / np.diff(times) / length
+    return step_probability, annual
+
+
 def combined_hazard(leak_hazard, burst_hazard, costs):
     """Cost-normalized threshold measure retained from the original model.
 
@@ -645,7 +718,7 @@ def Joint_planning_step(
     t, k, L, D, gs, rep1, rep2, ptr, nxt, births, active,
     props, costs, sim, S_err, q_pod, Qsf_arr, Fsf_arr, M_v_arr,
     insp_times, failed_locations, birth_rate, action_arr,
-    decision_mode=ILI_DECISION_MODE,
+    decision_mode=ILI_DECISION_MODE, *, leak_history=None, burst_history=None,
 ):
     nx = L.shape[1]
     expected_failure = expected_repair = 0.0
@@ -709,6 +782,10 @@ def Joint_planning_step(
         ) / (1 + rate) ** t
         leak_count += int(leak)
         burst_count += int(burst)
+        if leak and leak_history is not None:
+            leak_history[xk] = True
+        if burst and burst_history is not None:
+            burst_history[xk] = True
 
         if leak or burst:
             for loc in failed_cracks:
@@ -1022,12 +1099,18 @@ def run_simulation(
     cpp_cracked, cpp_crack_free, num_repairs = (np.zeros(nt) for _ in range(3))
     cumulative_leaks = np.zeros((len(num_cracks_list), nt))
     cumulative_bursts = np.zeros_like(cumulative_leaks)
+    leak_event_counts = np.zeros_like(cumulative_leaks)
+    burst_event_counts = np.zeros_like(cumulative_leaks)
+    step_leak_pofs = np.zeros_like(cumulative_leaks)
+    step_burst_pofs = np.zeros_like(cumulative_leaks)
+    has_leaked = [np.zeros(nx_filtered, dtype=bool) for _ in num_cracks_list]
+    has_burst = [np.zeros(nx_filtered, dtype=bool) for _ in num_cracks_list]
     unsafe_times = []
     previous_checkpoint = None
 
     arrays_for_checkpoint = lambda: (
         L_states, D_states, g_states, rep1, rep2,
-        qsf_states, fsf_states, mv_states,
+        qsf_states, fsf_states, mv_states, has_leaked, has_burst,
     )
     nested_for_checkpoint = lambda: (
         ptr, nxt, births_list, active, failed_locations,
@@ -1047,7 +1130,6 @@ def run_simulation(
         ):
             cii[k] = ili_inspection_event_cost(costs) / (1 + costs["rate"]) ** t
 
-        group_leak_pofs, group_burst_pofs = [], []
         for j, (cracks, count) in enumerate(zip(num_cracks_list, group_counts)):
             result = Joint_planning_step(
                 t, k, L_states[j], D_states[j], g_states[j], rep1[j], rep2[j],
@@ -1055,6 +1137,7 @@ def run_simulation(
                 costs, sim_params, S_err, q_pod, qsf_states[j], fsf_states[j],
                 mv_states[j], insp_times, failed_locations[j], birth_rates[j],
                 action_arr[j], decision_mode,
+                leak_history=has_leaked[j], burst_history=has_burst[j],
             )
             (
                 joint_cpp, joint_cff, joint_crr, _, leaks, bursts,
@@ -1063,10 +1146,14 @@ def run_simulation(
                 fsf_states[j], mv_states[j], failed_locations[j],
                 expected_repairs, action_arr[j],
             ) = result
-            cumulative_leaks[j, k] = (cumulative_leaks[j, k - 1] if k else 0) + leaks
-            cumulative_bursts[j, k] = (cumulative_bursts[j, k - 1] if k else 0) + bursts
-            group_leak_pofs.append(cumulative_leaks[j, k] / nx_filtered)
-            group_burst_pofs.append(cumulative_bursts[j, k] / nx_filtered)
+            # A realization contributes once to each mode's cumulative POF,
+            # while every repeat failure continues to incur its lifecycle cost.
+            cumulative_leaks[j, k] = np.count_nonzero(has_leaked[j])
+            cumulative_bursts[j, k] = np.count_nonzero(has_burst[j])
+            leak_event_counts[j, k] = (leak_event_counts[j, k - 1] if k else 0) + leaks
+            burst_event_counts[j, k] = (burst_event_counts[j, k - 1] if k else 0) + bursts
+            step_leak_pofs[j, k] = leaks / nx_filtered
+            step_burst_pofs[j, k] = bursts / nx_filtered
 
             cpp[k] += count * joint_cpp
             cff[k] += count * joint_cff
@@ -1081,19 +1168,17 @@ def run_simulation(
                 D_debug[:, k + 1] = D_states[j][:, debug_sample]
 
         cpp[k] += cii[k]
-        system_leak_pofs[k], system_burst_pofs[k] = calculate_grouped_system_pofs(
-            group_leak_pofs, group_burst_pofs, group_counts
-        )
-        if k:
-            previous_leak, previous_burst = system_leak_pofs[k - 1], system_burst_pofs[k - 1]
-            system_leak_hazard[k] = (
-                (system_leak_pofs[k] - previous_leak) / (1 - previous_leak)
-                if previous_leak < 1 else 0
-            ) / costs["pipe_length_km"]
-            system_burst_hazard[k] = (
-                (system_burst_pofs[k] - previous_burst) / (1 - previous_burst)
-                if previous_burst < 1 else 0
-            ) / costs["pipe_length_km"]
+        for joint_counts_so_far, step_probabilities, system_pof, annual_pof in (
+            (cumulative_leaks, step_leak_pofs, system_leak_pofs, system_leak_hazard),
+            (cumulative_bursts, step_burst_pofs, system_burst_pofs, system_burst_hazard),
+        ):
+            cumulative, _ = grouped_system_pof_history(
+                joint_counts_so_far[:, :k + 1] / nx_filtered, group_counts,
+                times[:k + 1], costs['pipe_length_km'])
+            _, annual = grouped_annual_failure_pofs(
+                step_probabilities[:, :k + 1], group_counts,
+                times[:k + 1], costs['pipe_length_km'])
+            system_pof[k], annual_pof[k] = cumulative[-1], annual[-1]
 
         if exceeds_safety_criteria(
             system_leak_hazard[k], system_burst_hazard[k], sim_params
@@ -1114,7 +1199,7 @@ def run_simulation(
             restored_arrays, restored_nested = _restore_checkpoint(previous_checkpoint)
             (
                 L_states, D_states, g_states, rep1, rep2,
-                qsf_states, fsf_states, mv_states,
+                qsf_states, fsf_states, mv_states, has_leaked, has_burst,
             ) = restored_arrays
             ptr, nxt, births_list, active, failed_locations = restored_nested
             for output in (
@@ -1125,6 +1210,10 @@ def run_simulation(
                 output[inspection_k] = 0
             cumulative_leaks[:, inspection_k] = 0
             cumulative_bursts[:, inspection_k] = 0
+            leak_event_counts[:, inspection_k] = 0
+            burst_event_counts[:, inspection_k] = 0
+            step_leak_pofs[:, inspection_k] = 0
+            step_burst_pofs[:, inspection_k] = 0
             for actions in action_arr:
                 actions[:, inspection_k] = 0
             unsafe_times = [row for row in unsafe_times if row[0] < proposed_time]
@@ -1151,6 +1240,12 @@ def run_simulation(
         "joint_names": joint_names,
         "joint_leak_pofs": cumulative_leaks / nx_filtered,
         "joint_burst_pofs": cumulative_bursts / nx_filtered,
+        "joint_leak_event_means": leak_event_counts / nx_filtered,
+        "joint_burst_event_means": burst_event_counts / nx_filtered,
+        "joint_leak_step_pofs": step_leak_pofs,
+        "joint_burst_step_pofs": step_burst_pofs,
+        "probability_basis": "At least one failure of each mode per joint realization",
+        "annual_probability_basis": "Actual failures in each operating time step, including repeat failures",
         "requested_samples": int(nx),
         "retained_samples": int(nx_filtered),
         "initial_survival_conditioning": True,

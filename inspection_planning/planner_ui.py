@@ -33,6 +33,7 @@ def render_planner(*, show_header=True):
     from inspection_planning.risk_map import sliding_window_reliability, reliability_map
     from inspection_planning.settings import PlanningSettings
     from inspection_planning.execution import run_batched_flexible_simulation, effective_batch_size, EXECUTION_REVISION
+    from inspection_planning.diagnostics import interval_safety_rows, joint_safety_rows
 
     COLORS = {
         "navy": "#10243d",
@@ -191,6 +192,8 @@ def render_planner(*, show_header=True):
             "joint_names": debug["joint_names"],
             "joint_leak_pofs": debug["joint_leak_pofs"],
             "joint_burst_pofs": debug["joint_burst_pofs"],
+            "joint_leak_step_pofs": debug["joint_leak_step_pofs"],
+            "joint_burst_step_pofs": debug["joint_burst_step_pofs"],
             "requested_samples": debug["requested_samples"],
             "retained_samples": debug["retained_samples"],
         }
@@ -661,6 +664,10 @@ def render_planner(*, show_header=True):
                     f"PfL ≤ {max_annual_leak_pof:.1e} and "
                     f"PfB ≤ {max_annual_burst_pof:.1e}."
                 )
+                st.caption('These checks use the probability of a failure during each year, '
+                    'combined across physical joints and divided once by the full route length in km. '
+                    'The limits apply to this route-average measure per km-year; '
+                    'the map checks individual 1 km windows separately.')
 
     with settings_left:
         with st.expander("Prior excavation intervals"):
@@ -698,13 +705,17 @@ def render_planner(*, show_header=True):
                 format="%.6f",
                 help=(
                     "Expected number of newly initiated cracks in one pipe joint during "
-                    "one year. The simulation samples new cracks using a Poisson process. "
+                    "one year. New-crack counts use a Poisson distribution; initiation "
+                    "times retain the existing research model's sampling rule. "
                     "Set this to zero to model no new crack initiation."
                 ),
             )
             st.caption(
                 "This planning-only birth rate applies to every saved physical joint."
             )
+            st.caption('Newly initiated cracks retain the research model\'s sizes: '
+                'depth 0.1–0.4 mm and full length 40–45 mm. Reducing existing crack sizes '
+                'does not change these future initiation assumptions.')
 
     with settings_right:
         with st.expander("Crack growth model"):
@@ -1097,6 +1108,34 @@ def render_planner(*, show_header=True):
                 prior_cost_optimal, prior_safe, ili_cost_optimal, ili_safe
             )
         )
+        with st.expander('Why an interval is Safe or Unsafe'):
+            st.caption('Safety is checked at every simulated year over the full analysis horizon, '
+                'including years after the first inspection. The table identifies the first '
+                'exceedance and the peak values used for that decision.')
+            safety_table = pd.DataFrame(interval_safety_rows(prior_results, 'Prior excavation')
+                + interval_safety_rows(ili_results, 'ILI-informed'))
+            st.dataframe(safety_table.style.format({
+                'Peak annual PfL / km-year': '{:.3e}',
+                'Peak annual PfB / km-year': '{:.3e}',
+                'First limit exceedance (year)': '{:.0f}',
+            }, na_rep='—'), hide_index=True, width='stretch')
+            st.download_button('Download interval safety diagnostics', safety_table.to_csv(index=False),
+                'planning_interval_safety.csv', 'text/csv')
+            st.caption(f'Joint/group details below use the map selection: {method}, '
+                f'{selected:g}-year interval. Each group is evaluated alone over the same '
+                f'{pipe_length:.3f} km route; these group values cannot be added together.')
+            groups_table = pd.DataFrame(joint_safety_rows(result, joints, pipe_length))
+            st.dataframe(groups_table.style.format({
+                'Peak group PfL / km-year': '{:.3e}',
+                'Peak group PfB / km-year': '{:.3e}',
+                'Approx. one-event increment / km': '{:.3e}',
+            }), hide_index=True, width='stretch')
+            st.caption('Initially crack-free groups can govern the result when new cracks initiate. '
+                'Their common marginal POF is estimated from the retained samples and combined '
+                'using the number of physical joints represented. The one-event increment is '
+                'a sampling-resolution indicator, not a confidence interval.')
+            st.download_button('Download joint/group probability diagnostics', groups_table.to_csv(index=False),
+                'planning_joint_group_probabilities.csv', 'text/csv')
         if voi is not None:
             if voi["voi"] > 0:
                 voi_class = "voi-positive"

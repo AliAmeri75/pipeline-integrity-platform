@@ -95,6 +95,23 @@ class PlanningRiskMapTests(unittest.TestCase):
             windows, _ = sliding_window_reliability(result, self.handoff)
         self.assertTrue(np.isinf(windows.limit_ratio).any())
 
+    def test_map_uses_operating_year_events_including_repeat_failures(self):
+        result = self.result()
+        result['joint_leak_step_pofs'] = np.zeros_like(result['joint_leak_pofs'])
+        result['joint_burst_step_pofs'] = np.zeros_like(result['joint_burst_pofs'])
+        result['joint_burst_pofs'][0] = [0., .5, .75]
+        result['joint_burst_step_pofs'][0] = [0., .5, .75]
+        windows, _ = sliding_window_reliability(result, self.handoff)
+        self.assertAlmostEqual(windows.peak_annual_burst_pof.iloc[0], .75)
+        self.assertEqual(windows.burst_peak_year.iloc[0], 2.)
+
+    def test_invalid_operating_step_probabilities_are_rejected(self):
+        result = self.result()
+        result['joint_burst_step_pofs'] = np.zeros_like(result['joint_burst_pofs'])
+        result['joint_burst_step_pofs'][0,1] = 1.1
+        with self.assertRaisesRegex(ValueError, 'operating-step'):
+            sliding_window_reliability(result, self.handoff)
+
 
 if __name__ == '__main__':
     unittest.main()

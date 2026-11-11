@@ -8,11 +8,13 @@ import importlib
 import sys
 
 
-SHARED_INPUT_REVISION = 'planning-batches-v2'
+SHARED_INPUT_REVISION = 'planning-pof-audit-v3'
 SHARED_INPUT_MODULES = (
     'profile_data', 'profile_visuals', 'profile_map', 'project_editor',
     'exploration_map', 'deterministic_analysis', 'threat_workspaces',
-    'inspection_planning.execution', 'inspection_planning.planner_ui',
+    'inspection_planning.engine', 'inspection_planning.execution',
+    'inspection_planning.diagnostics', 'inspection_planning.risk_map',
+    'inspection_planning.planner_ui',
 )
 
 

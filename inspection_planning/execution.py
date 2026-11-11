@@ -1,7 +1,8 @@
 """Bounded-memory execution of fixed-interval Monte Carlo planning.
 
-Each batch calls the existing physical model. Costs and joint failure counts are
-pooled over retained realizations before rebuilding system POF and annual POF.
+Each batch calls the existing physical model. Costs, joint first-event CDFs and
+operating-step failure counts are pooled over retained realizations before
+rebuilding system POF and annual operating POF.
 System probabilities and batch Safe/Unsafe flags must never be averaged.
 Threshold scheduling is deliberately excluded: its decisions need the whole
 population's probability at each time step.
@@ -15,7 +16,7 @@ import numpy as np
 from inspection_planning import engine
 
 
-EXECUTION_REVISION = 'fixed-interval-batches-v1'
+EXECUTION_REVISION = 'fixed-interval-pof-v2'
 MEAN_OUTPUTS = (6, 7, 8, 9, 12, 13, 14)
 
 
@@ -43,15 +44,13 @@ def _pooled_result(state, joints, costs, sim):
     joint_leak = state['joint_leak_counts'] / retained
     joint_burst = state['joint_burst_counts'] / retained
     counts = np.asarray([joint.get('count', 1) for joint in joints], dtype=int)
-    # Apply the original grouped series-system formula at each time step.
-    leak = 1 - np.prod((1 - joint_leak) ** counts[:, None], axis=0)
-    burst = 1 - np.prod((1 - joint_burst) ** counts[:, None], axis=0)
-    leak_annual, burst_annual = np.zeros(len(times)), np.zeros(len(times))
     length = float(costs['pipe_length_km'])
-    np.divide(np.diff(leak), 1 - leak[:-1], out=leak_annual[1:], where=leak[:-1] < 1)
-    np.divide(np.diff(burst), 1 - burst[:-1], out=burst_annual[1:], where=burst[:-1] < 1)
-    leak_annual /= length
-    burst_annual /= length
+    joint_leak_steps = state['joint_leak_step_counts'] / retained
+    joint_burst_steps = state['joint_burst_step_counts'] / retained
+    leak, _ = engine.grouped_system_pof_history(joint_leak, counts, times, length)
+    burst, _ = engine.grouped_system_pof_history(joint_burst, counts, times, length)
+    _, leak_annual = engine.grouped_annual_failure_pofs(joint_leak_steps, counts, times, length)
+    _, burst_annual = engine.grouped_annual_failure_pofs(joint_burst_steps, counts, times, length)
     unsafe = [(float(t), float(h), float(p)) for t, l, h, p in
               zip(times, leak_annual, burst_annual, burst)
               if engine.exceeds_safety_criteria(l, h, sim)]
@@ -66,9 +65,15 @@ def _pooled_result(state, joints, costs, sim):
         sample_idx=0, crack_count_group=len(joints[0].get('cracks', [])),
         joint_name=state['joint_names'][0], joint_names=list(state['joint_names']),
         joint_leak_pofs=joint_leak, joint_burst_pofs=joint_burst,
+        joint_leak_step_pofs=joint_leak_steps, joint_burst_step_pofs=joint_burst_steps,
         requested_samples=state['requested'], retained_samples=retained,
         initial_survival_conditioning=True, batch_size=state['batch_size'],
+        probability_basis='At least one failure of each mode per joint realization',
+        annual_probability_basis='Actual failures in each operating time step, including repeat failures',
         completed_batches=state['batches'], execution_revision=EXECUTION_REVISION)
+    for key in ('joint_leak_event_means', 'joint_burst_event_means'):
+        if key + '_sum' in state:
+            outputs[16][key] = state[key + '_sum'] / retained
     return tuple(outputs)
 
 
@@ -145,6 +150,11 @@ def run_batched_flexible_simulation(
                               for i in MEAN_OUTPUTS}
             update['joint_leak_counts'] = state.get('joint_leak_counts', 0.) + weight * np.asarray(debug['joint_leak_pofs'])
             update['joint_burst_counts'] = state.get('joint_burst_counts', 0.) + weight * np.asarray(debug['joint_burst_pofs'])
+            update['joint_leak_step_counts'] = state.get('joint_leak_step_counts', 0.) + weight * np.asarray(debug['joint_leak_step_pofs'])
+            update['joint_burst_step_counts'] = state.get('joint_burst_step_counts', 0.) + weight * np.asarray(debug['joint_burst_step_pofs'])
+            for key in ('joint_leak_event_means', 'joint_burst_event_means'):
+                if key in debug:
+                    update[key + '_sum'] = state.get(key + '_sum', 0.) + weight * np.asarray(debug[key])
         # Commit small sufficient statistics, then release the batch's raw outputs.
         state.update(update)
         del raw

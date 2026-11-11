@@ -14,6 +14,8 @@ def fake_result(requested, retained, probabilities, cost):
     times = np.arange(3)
     joint = np.array(probabilities, dtype=float)
     debug = dict(joint_names=['A','B'], joint_leak_pofs=joint, joint_burst_pofs=joint / 2,
+                 joint_leak_step_pofs=np.diff(joint, prepend=0., axis=1),
+                 joint_burst_step_pofs=np.diff(joint / 2, prepend=0., axis=1),
                  requested_samples=requested, retained_samples=retained)
     output = [None] * 17
     output[:6] = [times, np.zeros(3), np.zeros(3), np.zeros(3), np.zeros(3), np.array([2.])]
@@ -60,6 +62,14 @@ class BatchedPlanningTests(unittest.TestCase):
         self.assertEqual(result[16]['requested_samples'],5)
         self.assertEqual(result[16]['retained_samples'],3)
         self.assertAlmostEqual(result[16]['joint_leak_pofs'][0,1],1/3)
+
+    def test_repeat_operating_events_remain_in_annual_pof_after_pooling(self):
+        raw = fake_result(2,2,[[0,.5,.5],[0,0,0]],1.)
+        raw[16]['joint_leak_step_pofs'][0] = [0., .5, .5]
+        with patch.object(engine,'run_flexible_simulation',return_value=raw):
+            result = self.run_fake(4,batch_size=2)
+        np.testing.assert_allclose(result[16]['joint_leak_pofs'][0],[0.,.5,.5])
+        np.testing.assert_allclose(result[3],[0.,.075,.075])
 
     def test_zero_survivor_batch_is_skipped_but_total_rejection_is_reported(self):
         error = RuntimeError('All Monte Carlo samples failed at time zero.')

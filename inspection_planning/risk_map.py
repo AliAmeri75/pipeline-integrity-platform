@@ -61,9 +61,10 @@ def sliding_window_reliability(result, handoff):
     """Return overlapping 1 km windows and each joint's worst enclosing window.
 
     Windows advance by one nominal joint and include a final window ending at
-    the route endpoint. Boundary joints are included in full. Joint cumulative
-    probabilities are combined by independent survival products before annual
-    conditional increments are calculated. For routes shorter than 1 km use the
+    the route endpoint. Boundary joints are included in full. Current planning
+    results combine each year's joint event probabilities, including failures
+    after replacement. A legacy result with only first-event CDFs uses their
+    conditional increments instead. For routes shorter than 1 km use the
     actual route length, with no extrapolation. The whole-route planning safety
     decision remains separate from this spatial display.
     """
@@ -94,17 +95,30 @@ def sliding_window_reliability(result, handoff):
         if (cumulative < 0).any() or (cumulative > 1).any() or (np.diff(cumulative, axis=1) < -1e-12).any():
             raise ValueError('The spatial map requires increasing cumulative joint probabilities within [0, 1]. '
                 'Repeated-failure event counts cannot be displayed as cumulative probabilities.')
-        logs = np.log1p(-np.minimum(cumulative, 1 - np.finfo(float).eps))
+        step_key = key.replace('_pofs', '_step_pofs')
+        operating_events = step_key in result
+        if operating_events:
+            steps = np.asarray(result[step_key], dtype=float)
+            if (steps.shape != values.shape or not np.isfinite(steps).all()
+                    or (steps < 0).any() or (steps > 1).any()):
+                raise ValueError('Joint operating-step probabilities must match the result times and lie within [0, 1].')
+            probabilities = steps[indices]
+        else:
+            probabilities = cumulative
+        logs = np.log1p(-np.minimum(probabilities, 1 - np.finfo(float).eps))
         prefix = np.vstack([np.zeros(len(times)), np.cumsum(logs, axis=0)])
-        saturated = np.vstack([np.zeros(len(times)), np.cumsum(cumulative == 1, axis=0)])
+        saturated = np.vstack([np.zeros(len(times)), np.cumsum(probabilities == 1, axis=0)])
         log_survival = prefix[right] - prefix[left]
         log_survival[(saturated[right] - saturated[left]) > 0] = -np.inf
-        previous = log_survival[:, :-1]
-        annual = np.zeros_like(previous)
-        valid = np.isfinite(previous)
-        difference = np.zeros_like(previous)
-        np.subtract(log_survival[:, 1:], previous, out=difference, where=valid)
-        annual[valid] = -np.expm1(np.minimum(difference[valid], 0))
+        if operating_events:
+            annual = -np.expm1(log_survival[:, 1:])
+        else:
+            previous = log_survival[:, :-1]
+            annual = np.zeros_like(previous)
+            valid = np.isfinite(previous)
+            difference = np.zeros_like(previous)
+            np.subtract(log_survival[:, 1:], previous, out=difference, where=valid)
+            annual[valid] = -np.expm1(np.minimum(difference[valid], 0))
         annual /= np.diff(times)
         peak_index = np.argmax(annual, axis=1)
         peaks.append(annual[np.arange(len(starts)), peak_index])
