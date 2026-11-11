@@ -71,8 +71,16 @@ class ProfileDataTests(unittest.TestCase):
         self.assertEqual(set(summary["Profile ID"]), {"SYN-001", "SYN-002", "SYN-003"})
         self.assertEqual(len(profiles), 3)
         self.assertTrue(summary["GW ID"].str.startswith("DEMO-GW-").all())
-        self.assertTrue(summary["Maximum depth (%WT)"].between(20.0, 65.0).all())
-        self.assertTrue((summary["Profile length (mm)"] > 0).all())
+        for row, depth, length in zip(summary.itertuples(index=False, name=None),
+                                     [2.1, 2.2, 2.3], [40., 42., 45.]):
+            record = dict(zip(summary.columns, row))
+            self.assertAlmostEqual(record['Maximum depth (mm)'], depth)
+            self.assertAlmostEqual(record['Profile length (mm)'], length)
+            grid = profiles[record['Profile ID']]
+            self.assertAlmostEqual(grid['Depth (%WT)'].max() / 100 * record['Wall thickness (mm)'], depth)
+            self.assertTrue(grid['Depth (%WT)'].ge(0).all())
+        self.assertEqual(summary['Wall thickness (mm)'].tolist(), [11.8] * 3)
+        self.assertEqual(summary['Outside diameter (mm)'].tolist(), [914.4] * 3)
 
     def test_crack_summary_omits_width_but_corrosion_keeps_it(self):
         summary, _ = parse_profile_workbook(synthetic_sample_workbook())

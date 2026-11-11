@@ -28,8 +28,13 @@ class SharedProjectTests(unittest.TestCase):
         for name,grid in p['profiles'].items():
             pd.testing.assert_frame_equal(grid,original[name])
 
-    def test_default_fpr_is_preserved(self):
-        result=deterministic_project(self.project)
+    def test_critical_reference_fpr_is_preserved_when_entered_explicitly(self):
+        # Keep the previous numerical benchmark as an explicit critical input;
+        # the user-facing sample now contains smaller defects.
+        from exploration_inputs import defect_register, project_from_register
+        register=defect_register(self.project)
+        register.loc[2,['depth_mm','length_mm']]=[7.67,360.]
+        result=deterministic_project(project_from_register(self.project,register))
         self.assertAlmostEqual(result.FPR.iloc[2],1.0790279248728556)
         self.assertEqual(result['Segment ID'].tolist(),[1,5,9])
         self.assertTrue(result.Severe.iloc[2])

@@ -8,9 +8,9 @@ import importlib
 import sys
 
 
-SHARED_INPUT_REVISION = 'planning-pof-audit-v3'
+SHARED_INPUT_REVISION = 'small-crack-sample-v4'
 SHARED_INPUT_MODULES = (
-    'profile_data', 'profile_visuals', 'profile_map', 'project_editor',
+    'profile_data', 'assessment_project', 'profile_visuals', 'profile_map', 'project_editor',
     'exploration_map', 'deterministic_analysis', 'threat_workspaces',
     'inspection_planning.engine', 'inspection_planning.execution',
     'inspection_planning.diagnostics', 'inspection_planning.risk_map',

@@ -75,11 +75,12 @@ def synthetic_sample_workbook(seed: int = 7314) -> bytes:
             "clock": "02:15",
             "diameter_mm": 914.4,
             "wall_mm": 11.8,
-            "x_count": 36,
+            "x_count": 40,
             "y_count": 17,
-            "x_step": 2.0,
+            "x_step": 1.0,
             "y_step": 4.0,
             "peak_target": 32.0,
+            "maximum_depth_mm": 2.1,
         },
         {
             "profile_id": "SYN-002",
@@ -89,11 +90,12 @@ def synthetic_sample_workbook(seed: int = 7314) -> bytes:
             "clock": "06:40",
             "diameter_mm": 914.4,
             "wall_mm": 11.8,
-            "x_count": 48,
+            "x_count": 42,
             "y_count": 21,
-            "x_step": 2.0,
+            "x_step": 1.0,
             "y_step": 4.0,
             "peak_target": 44.0,
+            "maximum_depth_mm": 2.2,
         },
         {
             "profile_id": "SYN-003",
@@ -103,11 +105,12 @@ def synthetic_sample_workbook(seed: int = 7314) -> bytes:
             "clock": "10:05",
             "diameter_mm": 914.4,
             "wall_mm": 11.8,
-            "x_count": 60,
+            "x_count": 45,
             "y_count": 19,
-            "x_step": 6.0,
+            "x_step": 1.0,
             "y_step": 4.0,
             "peak_target": 53.0,
+            "maximum_depth_mm": 2.3,
         },
     ]
 
@@ -174,6 +177,18 @@ def synthetic_sample_workbook(seed: int = 7314) -> bytes:
                 depth = 0.0 if depth < 4.0 else round(min(depth, 65.0), 1)
                 maximum_depth = max(maximum_depth, depth)
                 worksheet.cell(y_index + 2, x_index + 6, depth)
+
+        # Retain the coloured, irregular profile shape while making its actual
+        # grid maximum match the requested depth in mm. Keep full precision in
+        # stored %WT values so exports, plots and planning use the same sizes.
+        target_percent = float(specification['maximum_depth_mm']) / float(specification['wall_mm']) * 100
+        scale = target_percent / maximum_depth
+        for row in worksheet.iter_rows(min_row=2, max_row=y_count + 1,
+                                       min_col=6, max_col=x_count + 5):
+            for cell in row:
+                cell.value *= scale
+                cell.number_format = '0.000'
+        maximum_depth = target_percent
 
         worksheet["B4"] = "Feature ID"
         worksheet["C4"] = feature_id

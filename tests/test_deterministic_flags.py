@@ -31,15 +31,13 @@ class ScreeningTests(unittest.TestCase):
         self.assertIn(SEVERE_LABEL,figure.data[1].hovertemplate)
         self.assertEqual(list(figure.data[1].customdata[:, 0]), ['low-fpr', 'deep'])
 
-    def test_sample_three_is_critical_at_default_inputs(self):
+    def test_smaller_sample_cracks_are_not_forced_to_be_critical(self):
         summary, _ = parse_profile_workbook(synthetic_sample_workbook())
         result = flag_profiles(analyze_deterministic_profiles(
             summary_for_defect_type(summary, 'Crack'), POFInputs()))
-        third = result.loc[result['Profile ID']=='SYN-003'].iloc[0]
-        self.assertLess(third.FPR, 1.1)
-        self.assertGreater(third.FPR, 0)
-        self.assertGreater(third['Depth / WT'], .5)
-        self.assertTrue(third.Severe)
+        self.assertTrue((result.FPR > 1.1).all())
+        self.assertTrue((result['Depth / WT'] < .5).all())
+        self.assertFalse(result.Severe.any())
 
 
 if __name__ == '__main__':

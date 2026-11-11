@@ -20,7 +20,7 @@ def render_project_editor(summary,profiles,content,is_sample,*,initial_project=N
     """Return edited draft; publication is explicit, after route review."""
     current=get_project()
     token=source_token or (('shared-sample-v3-'+initial_project['source'] if initial_project is not None else
-        'shared-sample-v2-uniform-pipe') if is_sample else
+        'shared-sample-v4-small-cracks') if is_sample else
         hashlib.sha256(content+str(initial_project.get('source','') if initial_project else source_type).encode()).hexdigest())
     if st.session_state.get('project_source_token')!=token:
         if initial_project is not None:
