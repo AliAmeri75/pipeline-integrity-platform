@@ -371,8 +371,9 @@ def simulate_cracks_vectorized(
     d0, l0, action, dt, gs, rep1_joint, rep2_joint, life, df,
     Neq, C, dS, m, wt, Di, Qsf, Fsf, Mv,
     resample_growth_each_step=True, reset_recoat_depth=True,
+    residual_depth_recoat_mm=(1.1, 1.4), residual_depth_sleeve_mm=(1.1, 1.4),
 ):
-    """Grow every active crack in one Monte Carlo joint realization."""
+    """Grow cracks and apply technique-specific residual-depth assumptions."""
     d0 = np.asarray(d0, dtype=float)
 
     if action == 0:
@@ -385,10 +386,16 @@ def simulate_cracks_vectorized(
     elif action == 1:
         rep1_new, rep2_new, factor = life[1], rep2_joint, df[1]
         if reset_recoat_depth:
-            d0 = np.full_like(d0, np.random.uniform(1.1, 1.4))
+            lower, upper = map(float, residual_depth_recoat_mm)
+            if not np.isfinite([lower, upper]).all() or lower < 0 or upper < lower:
+                raise ValueError("Recoat residual crack-depth range must be finite and nonnegative.")
+            d0 = np.full_like(d0, np.random.uniform(lower, upper))
     else:
         rep1_new, rep2_new, factor = rep1_joint, life[2], df[2]
-        d0 = np.full_like(d0, np.random.uniform(1.1, 1.4))
+        lower, upper = map(float, residual_depth_sleeve_mm)
+        if not np.isfinite([lower, upper]).all() or lower < 0 or upper < lower:
+            raise ValueError("Sleeve residual crack-depth range must be finite and nonnegative.")
+        d0 = np.full_like(d0, np.random.uniform(lower, upper))
 
     with np.errstate(divide="ignore", invalid="ignore", over="ignore"):
         geometry = (
@@ -890,7 +897,11 @@ def Joint_planning_step(
                     Qsf_arr[locations, xk], Fsf_arr[locations, xk],
                     M_v_arr[locations, xk],
                     sim.get("resample_growth_each_step", True),
-                    decision_mode != EXCAVATION_DECISION_MODE,
+                    # Both strategies use the same treatment effect once a
+                    # repair is selected; only their selection rules differ.
+                    True,
+                    sim.get("residual_depth_recoat_mm", (1.1, 1.4)),
+                    sim.get("residual_depth_sleeve_mm", (1.1, 1.4)),
                 )
             )
 

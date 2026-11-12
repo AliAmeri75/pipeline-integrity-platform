@@ -809,10 +809,34 @@ def render_planner(*, show_header=True):
 
     with settings_right:
         with st.expander("Repair effectiveness"):
+            st.caption("For this model, each technique leaves a residual crack depth after treatment. "
+                       "The value is sampled uniformly between the minimum and maximum; use the same "
+                       "minimum and maximum for a fixed residual depth.")
+            st.markdown("**Recoat (Type 1 intervention)**")
             coat_df = settings.number_input("Recoat growth factor, df1", 0.0, 1.0, 0.0, 0.05)
             coat_period = settings.number_input("Recoat effective period (years)", 0, 100, 5, 1)
+            recoat_depth_min = settings.number_input(
+                "Recoat residual crack depth minimum (mm)", 0.0, 100.0, 1.1, 0.1,
+                help="Lower end of the residual-depth range used after a Type 1 intervention.")
+            recoat_depth_max = settings.number_input(
+                "Recoat residual crack depth maximum (mm)", 0.0, 100.0, 1.4, 0.1,
+                help="Upper end of the residual-depth range used after a Type 1 intervention.")
+            if recoat_depth_min > recoat_depth_max:
+                st.error("Recoat residual-depth minimum cannot exceed its maximum.")
+                st.stop()
+            st.divider()
+            st.markdown("**Sleeve (Type 2 intervention)**")
             sleeve_df = settings.number_input("Sleeve growth factor, df2", 0.0, 1.0, 0.0, 0.05)
             sleeve_period = settings.number_input("Sleeve effective period (years)", 0, 100, 5, 1)
+            sleeve_depth_min = settings.number_input(
+                "Sleeve residual crack depth minimum (mm)", 0.0, 100.0, 1.1, 0.1,
+                help="Lower end of the residual-depth range used after a Type 2 intervention.")
+            sleeve_depth_max = settings.number_input(
+                "Sleeve residual crack depth maximum (mm)", 0.0, 100.0, 1.4, 0.1,
+                help="Upper end of the residual-depth range used after a Type 2 intervention.")
+            if sleeve_depth_min > sleeve_depth_max:
+                st.error("Sleeve residual-depth minimum cannot exceed its maximum.")
+                st.stop()
 
     with settings_left:
         with st.expander(f"Costs (million {handoff['consequence_unit'] or 'currency units'})"):
@@ -969,6 +993,8 @@ def render_planner(*, show_header=True):
             "D_rep2_fraction": float(d_rep2) / 100,
             "lifetime_arr": [0, int(coat_period), int(sleeve_period)],
             "df_arr": [1, float(coat_df), float(sleeve_df)],
+            "residual_depth_recoat_mm": [float(recoat_depth_min), float(recoat_depth_max)],
+            "residual_depth_sleeve_mm": [float(sleeve_depth_min), float(sleeve_depth_max)],
             "threshold": 1e-3,
             "max_annual_leak_pof": (
                 float(max_annual_leak_pof) if safety_criteria_valid else np.nan
