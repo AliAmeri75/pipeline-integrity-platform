@@ -113,7 +113,7 @@ class PlanningProbabilityTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 engine.grouped_system_pof_history(probabilities, [1], np.arange(len(probabilities[0])), 10.)
 
-    def test_annual_safety_uses_operating_events_and_normalizes_length_once(self):
+    def test_annual_pof_outputs_include_route_and_per_km_metrics(self):
         steps = np.array([[0., .002, .001], [0., .001, .003]])
         counts = [1, 100]
         expected = 1 - (1 - steps[0]) * (1 - steps[1]) ** 100
@@ -124,6 +124,18 @@ class PlanningProbabilityTests(unittest.TestCase):
         np.testing.assert_allclose(one_km, annual * 10.)
         _, two_year_steps = engine.grouped_annual_failure_pofs(steps, counts, [0., 2., 4.], 10.)
         np.testing.assert_allclose(two_year_steps, annual / 2.)
+
+    def test_whole_route_annual_safety_does_not_divide_by_route_length(self):
+        step_probability = np.array([0., .008])
+        whole_route_annual = engine.annualize_system_step_pofs(
+            step_probability, [0., 1.])
+        _, per_km_diagnostic = engine.grouped_annual_failure_pofs(
+            [[0., .008]], [1], [0., 1.], 10.)
+        np.testing.assert_allclose(whole_route_annual, [0., .008])
+        np.testing.assert_allclose(per_km_diagnostic, [0., .0008])
+        self.assertTrue(engine.exceeds_safety_criteria(
+            0., whole_route_annual[1],
+            {'max_annual_leak_pof': .01, 'max_annual_burst_pof': .001}))
 
     def test_small_non_growing_cracks_can_pass_an_interval_above_four_years(self):
         joint, costs, sim = inputs()

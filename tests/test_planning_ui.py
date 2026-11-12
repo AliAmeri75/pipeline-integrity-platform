@@ -141,7 +141,7 @@ class PlanningUITests(unittest.TestCase):
         self.assertEqual(len(study['ili_results']),1)
         self.assertTrue(any(s.value=='Cost-optimal and safe scheduling results' for s in app.subheader))
         self.assertTrue(any(e.label=='Why an interval is Safe or Unsafe' for e in app.expander))
-        self.assertTrue(any('Peak annual PfB / km-year' in d.value.columns for d in app.dataframe))
+        self.assertTrue(any('Peak annual whole-pipeline PfB' in d.value.columns for d in app.dataframe))
         self.assertEqual(project_signature(app.session_state['assessment_project']), before)
         changed = deepcopy(project)
         changed['summary'].loc[0,'Feature location (m)'] += 1

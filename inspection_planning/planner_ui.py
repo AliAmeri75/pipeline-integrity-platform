@@ -180,6 +180,8 @@ def render_planner(*, show_header=True):
             "burst_pof": burst_pof,
             "leak_hazard": leak_hazard,
             "burst_hazard": burst_hazard,
+            "leak_annual_pof": debug["system_leak_annual_pof"],
+            "burst_annual_pof": debug["system_burst_annual_pof"],
             "inspections": inspections,
             "cpp": cpp,
             "total_cpp": float(np.sum(cpp)),
@@ -458,12 +460,12 @@ def render_planner(*, show_header=True):
             f"Annual system POF at the cost-optimal {result['interval']}-year "
             f"{schedule_label.lower()} interval",
             "Year",
-            "Annual probability of failure (per km-year)",
+            "Annual probability of failure (whole pipeline)",
         )
         figure.add_trace(
             go.Scatter(
                 x=result["times"],
-                y=np.maximum(result["leak_hazard"], 1e-12),
+                y=np.maximum(result["leak_annual_pof"], 1e-12),
                 name="Leakage",
                 mode="lines+markers",
                 line={"color": COLORS["blue"], "width": 2.6},
@@ -473,7 +475,7 @@ def render_planner(*, show_header=True):
         figure.add_trace(
             go.Scatter(
                 x=result["times"],
-                y=np.maximum(result["burst_hazard"], 1e-12),
+                y=np.maximum(result["burst_annual_pof"], 1e-12),
                 name="Burst",
                 mode="lines+markers",
                 line={"color": COLORS["coral"], "width": 2.6},
@@ -664,10 +666,11 @@ def render_planner(*, show_header=True):
                     f"PfL ≤ {max_annual_leak_pof:.1e} and "
                     f"PfB ≤ {max_annual_burst_pof:.1e}."
                 )
-                st.caption('These checks use the probability of a failure during each year, '
-                    'combined across physical joints and divided once by the full route length in km. '
-                    'The limits apply to this route-average measure per km-year; '
-                    'the map checks individual 1 km windows separately.')
+                st.caption('These checks use the annual probability of at least one failure '
+                    'anywhere on the full pipeline, combined across its physical joints. '
+                    'The limits are compared directly with that whole-pipeline probability; '
+                    'there is no division by pipeline length. The map also reports local '
+                    'sliding 1 km windows.')
 
     with settings_left:
         with st.expander("Prior excavation intervals"):
@@ -1085,6 +1088,7 @@ def render_planner(*, show_header=True):
                 windows, spatial = sliding_window_reliability(result, handoff)
                 st_folium(reliability_map(handoff['project']['route'], spatial), height=450,
                     returned_objects=[], key=f'integrated_result_map_{method}_{selected}')
+                st.markdown('**Sliding one KM results**')
                 st.dataframe(windows.sort_values('limit_ratio', ascending=False), hide_index=True)
                 st.download_button('Download sliding 1 km results CSV', windows.to_csv(index=False),
                     'planning_sliding_1km_results.csv', 'text/csv')
@@ -1115,8 +1119,8 @@ def render_planner(*, show_header=True):
             safety_table = pd.DataFrame(interval_safety_rows(prior_results, 'Prior excavation')
                 + interval_safety_rows(ili_results, 'ILI-informed'))
             st.dataframe(safety_table.style.format({
-                'Peak annual PfL / km-year': '{:.3e}',
-                'Peak annual PfB / km-year': '{:.3e}',
+                'Peak annual whole-pipeline PfL': '{:.3e}',
+                'Peak annual whole-pipeline PfB': '{:.3e}',
                 'First limit exceedance (year)': '{:.0f}',
             }, na_rep='—'), hide_index=True, width='stretch')
             st.download_button('Download interval safety diagnostics', safety_table.to_csv(index=False),

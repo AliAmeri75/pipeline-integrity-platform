@@ -16,7 +16,7 @@ import numpy as np
 from inspection_planning import engine
 
 
-EXECUTION_REVISION = 'fixed-interval-pof-v2'
+EXECUTION_REVISION = 'fixed-interval-pof-v3-whole-route-safety'
 MEAN_OUTPUTS = (6, 7, 8, 9, 12, 13, 14)
 
 
@@ -49,13 +49,17 @@ def _pooled_result(state, joints, costs, sim):
     joint_burst_steps = state['joint_burst_step_counts'] / retained
     leak, _ = engine.grouped_system_pof_history(joint_leak, counts, times, length)
     burst, _ = engine.grouped_system_pof_history(joint_burst, counts, times, length)
-    _, leak_annual = engine.grouped_annual_failure_pofs(joint_leak_steps, counts, times, length)
-    _, burst_annual = engine.grouped_annual_failure_pofs(joint_burst_steps, counts, times, length)
-    unsafe = [(float(t), float(h), float(p)) for t, l, h, p in
-              zip(times, leak_annual, burst_annual, burst)
-              if engine.exceeds_safety_criteria(l, h, sim)]
+    leak_step, leak_per_km = engine.grouped_annual_failure_pofs(
+        joint_leak_steps, counts, times, length)
+    burst_step, burst_per_km = engine.grouped_annual_failure_pofs(
+        joint_burst_steps, counts, times, length)
+    leak_annual = engine.annualize_system_step_pofs(leak_step, times)
+    burst_annual = engine.annualize_system_step_pofs(burst_step, times)
+    unsafe = [(float(t), float(l), float(b)) for t, l, b in
+              zip(times, leak_annual, burst_annual)
+              if engine.exceeds_safety_criteria(l, b, sim)]
     outputs = [None] * 17
-    outputs[:6] = [times.copy(), leak, burst, leak_annual, burst_annual,
+    outputs[:6] = [times.copy(), leak, burst, leak_per_km, burst_per_km,
                    state['inspections'].copy()]
     for index in MEAN_OUTPUTS:
         outputs[index] = state['sums'][index] / retained
@@ -66,6 +70,8 @@ def _pooled_result(state, joints, costs, sim):
         joint_name=state['joint_names'][0], joint_names=list(state['joint_names']),
         joint_leak_pofs=joint_leak, joint_burst_pofs=joint_burst,
         joint_leak_step_pofs=joint_leak_steps, joint_burst_step_pofs=joint_burst_steps,
+        system_leak_annual_pof=leak_annual, system_burst_annual_pof=burst_annual,
+        safety_probability_basis='Annual probability of at least one failure anywhere on the full route',
         requested_samples=state['requested'], retained_samples=retained,
         initial_survival_conditioning=True, batch_size=state['batch_size'],
         probability_basis='At least one failure of each mode per joint realization',

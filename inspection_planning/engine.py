@@ -548,11 +548,11 @@ def grouped_annual_failure_pofs(joint_step_pofs, counts, times, pipe_length_km):
     """Combine actual joint failure probabilities in each operating time step.
 
     At most one leak or burst per joint realization is recorded in a simulation
-    step. Independent physical joints are combined with a series product; the
-    resulting step probability is divided once by the step duration and full
-    route length. There is no division by past cumulative system survival.
-    This route-average metric is not a worst-1-km assessment or an exact spatial
-    rescaling of a nonuniform pipeline's probability to a one-km segment.
+    step. Independent physical joints are combined with a series product. The
+    first returned series is whole-route step probability; the second is kept
+    as a route-average per-km-year compatibility metric. Safety decisions use
+    ``annualize_system_step_pofs`` on the first series, without length scaling.
+    There is no division by past cumulative system survival.
     """
     log_survival, times, length = _grouped_log_survival(
         joint_step_pofs, counts, times, pipe_length_km, cumulative=False)
@@ -560,6 +560,27 @@ def grouped_annual_failure_pofs(joint_step_pofs, counts, times, pipe_length_km):
     annual = np.zeros(len(times))
     annual[1:] = step_probability[1:] / np.diff(times) / length
     return step_probability, annual
+
+
+def annualize_system_step_pofs(step_probabilities, times):
+    """Convert whole-route step probabilities to annual whole-route POFs.
+
+    Safety limits apply to the probability of at least one failure anywhere on
+    the modeled route. Pipeline length is not used to scale this probability.
+    """
+    probabilities = np.asarray(step_probabilities, dtype=float)
+    times = np.asarray(times, dtype=float)
+    if (probabilities.ndim != 1 or times.ndim != 1
+            or probabilities.shape != times.shape or not len(times)
+            or not np.isfinite(probabilities).all()
+            or not np.isfinite(times).all()
+            or np.any(probabilities < 0) or np.any(probabilities > 1)
+            or np.any(np.diff(times) <= 0)):
+        raise ValueError('Provide finite whole-route step POFs and increasing times.')
+    annual = np.zeros_like(probabilities)
+    if len(times) > 1:
+        annual[1:] = probabilities[1:] / np.diff(times)
+    return annual
 
 
 def combined_hazard(leak_hazard, burst_hazard, costs):
@@ -664,7 +685,7 @@ def plot_system_hazard_rates(times, leak_hazard, burst_hazard, approach_name, ou
     plt.semilogy(times, _positive_for_log(burst_hazard), "r-",
                  label="Burst", linewidth=2)
     plt.xlabel("Time (years)", fontsize=14)
-    plt.ylabel("Annual POF (per km-year)", fontsize=14)
+    plt.ylabel("Route-average annual POF (per km-year)", fontsize=14)
     plt.legend(prop={"family": "Times New Roman", "size": 14})
     plt.grid(True)
     plt.savefig(_output_path(output_dir, f"System_Hazard_Rates_{approach_name}.png"),
@@ -1093,8 +1114,10 @@ def run_simulation(
 
     system_leak_pofs = np.zeros(nt)
     system_burst_pofs = np.zeros(nt)
-    system_leak_hazard = np.zeros(nt)
+    system_leak_hazard = np.zeros(nt)  # Route-average per km-year, retained for compatibility.
     system_burst_hazard = np.zeros(nt)
+    system_leak_annual_pof = np.zeros(nt)  # Whole-route annual POF used for safety limits.
+    system_burst_annual_pof = np.zeros(nt)
     cpp, cff, crr, cii = (np.zeros(nt) for _ in range(4))
     cpp_cracked, cpp_crack_free, num_repairs = (np.zeros(nt) for _ in range(3))
     cumulative_leaks = np.zeros((len(num_cracks_list), nt))
@@ -1168,22 +1191,27 @@ def run_simulation(
                 D_debug[:, k + 1] = D_states[j][:, debug_sample]
 
         cpp[k] += cii[k]
-        for joint_counts_so_far, step_probabilities, system_pof, annual_pof in (
-            (cumulative_leaks, step_leak_pofs, system_leak_pofs, system_leak_hazard),
-            (cumulative_bursts, step_burst_pofs, system_burst_pofs, system_burst_hazard),
+        for joint_counts_so_far, step_probabilities, system_pof, annual_pof, route_average in (
+            (cumulative_leaks, step_leak_pofs, system_leak_pofs,
+             system_leak_annual_pof, system_leak_hazard),
+            (cumulative_bursts, step_burst_pofs, system_burst_pofs,
+             system_burst_annual_pof, system_burst_hazard),
         ):
             cumulative, _ = grouped_system_pof_history(
                 joint_counts_so_far[:, :k + 1] / nx_filtered, group_counts,
                 times[:k + 1], costs['pipe_length_km'])
-            _, annual = grouped_annual_failure_pofs(
+            step_probability, annual_per_km = grouped_annual_failure_pofs(
                 step_probabilities[:, :k + 1], group_counts,
                 times[:k + 1], costs['pipe_length_km'])
-            system_pof[k], annual_pof[k] = cumulative[-1], annual[-1]
+            system_pof[k] = cumulative[-1]
+            annual_pof[k] = annualize_system_step_pofs(
+                step_probability, times[:k + 1])[-1]
+            route_average[k] = annual_per_km[-1]
 
         if exceeds_safety_criteria(
-            system_leak_hazard[k], system_burst_hazard[k], sim_params
+            system_leak_annual_pof[k], system_burst_annual_pof[k], sim_params
         ):
-            unsafe_times.append((t, system_burst_hazard[k], system_burst_pofs[k]))
+            unsafe_times.append((t, system_leak_annual_pof[k], system_burst_annual_pof[k]))
 
         threshold_exceeded = (
             approach == "threshold"
@@ -1206,6 +1234,7 @@ def run_simulation(
                 cpp, cff, crr, cii, cpp_cracked, cpp_crack_free, num_repairs,
                 system_leak_pofs, system_burst_pofs,
                 system_leak_hazard, system_burst_hazard,
+                system_leak_annual_pof, system_burst_annual_pof,
             ):
                 output[inspection_k] = 0
             cumulative_leaks[:, inspection_k] = 0
@@ -1244,6 +1273,9 @@ def run_simulation(
         "joint_burst_event_means": burst_event_counts / nx_filtered,
         "joint_leak_step_pofs": step_leak_pofs,
         "joint_burst_step_pofs": step_burst_pofs,
+        "system_leak_annual_pof": system_leak_annual_pof,
+        "system_burst_annual_pof": system_burst_annual_pof,
+        "safety_probability_basis": "Annual probability of at least one failure anywhere on the full route",
         "probability_basis": "At least one failure of each mode per joint realization",
         "annual_probability_basis": "Actual failures in each operating time step, including repeat failures",
         "requested_samples": int(nx),

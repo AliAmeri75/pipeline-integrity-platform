@@ -34,9 +34,10 @@ does not add crack-interaction equations or corrosion/dent planning physics.
 The original engine conditions its Monte Carlo population on survival at time
 zero. `debug['requested_samples']` and `debug['retained_samples']` expose that
 conditioning; all-failed populations raise an error. This is not a substitute
-for acting on already-critical measured defects. Its safety comparison also
-retains the original whole-route annual hazard normalized by length, not a
-new local sliding-window safety criterion.
+for acting on already-critical measured defects. Safety limits are applied to
+the annual probability of at least one failure anywhere on the full route,
+without dividing by route length. The map separately shows local sliding 1 km
+windows.
 
 The UI uses Plotly. Optional original CLI plotting functions import Matplotlib
 only when invoked; Matplotlib is not needed to run the integrated UI.

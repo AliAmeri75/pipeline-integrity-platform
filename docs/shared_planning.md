@@ -154,35 +154,37 @@ repairable-system event counts described in the
 [NIST reliability handbook](https://www.itl.nist.gov/div898/handbook/apr/section1/apr125.htm).
 
 For each failure mode and operating step, the existing independent-joint
-assumption combines the joint probabilities before spatial normalization:
+assumption combines joint probabilities across the full modeled route:
 
 ```text
 q_system[t] = 1 - product((1 - q_joint[j,t]) ** physical_joint_count[j])
-annual_route_average[t] = q_system[t] / time_step_years[t] / route_length_km
+annual_whole_route[t] = q_system[t] / time_step_years[t]
+annual_route_average_per_km[t] = annual_whole_route[t] / route_length_km
 ```
 
-For the UI's one-year steps and a 10 km route this is `q_system[t] / 10`, once.
-There is no extra division by past cumulative system survival. The earlier
-implementation accumulated repeat events into a purported CDF and used its
-conditional increments; that could inflate late-year values or produce POF above
-one. Separately, calculating from rounded cumulative system POF could lose
-increments when the reported CDF rounded to one. Current operating-step series
-products are evaluated through log survival.
+The Class 1–4 safety limits are compared with `annual_whole_route`, without
+dividing by route length. For a 10 km route, a whole-route annual burst POF of
+`0.008` is therefore above the Class 1 limit of `0.001`. The separately reported
+route-average-per-km value would be `0.0008`; it is not the safety value. The map
+also evaluates local sliding 1 km windows. There is no extra division by past
+cumulative system survival. The earlier implementation accumulated repeat
+events into a purported CDF and used its conditional increments; that could
+inflate late-year values or produce POF above one. Separately, calculating from
+rounded cumulative system POF could lose increments when the reported CDF rounded
+to one. Current operating-step series products are evaluated through log survival.
 
-Whole-route cumulative POF remains an unnormalized probability in `[0, 1]`.
-The normalized annual route average is a separate study metric; dividing by
-length does not establish compliance with a critical-1-km criterion. The map
+Whole-route cumulative and annual POF remain probabilities in `[0, 1]`. The map
 independently combines operating-step joint probabilities in its 1 km windows.
 Legacy external map results with only first-event CDFs retain the conditional-
 increment interpretation; current integrated results always supply step POFs.
 
-The UI's **Why an interval is Safe or Unsafe** table reports the peak annual
-leakage/burst values, their years, and the first threshold exceedance for every
-candidate. Joint/group diagnostics retain the physical-joint multiplicity and
+The UI's **Why an interval is Safe or Unsafe** table reports peak whole-route
+annual leakage/burst POFs, their years, and the first threshold exceedance for
+every candidate. Joint/group diagnostics retain physical-joint multiplicity and
 show a rough one-event sampling increment. Those group values are evaluated
-alone over the full route length and cannot be added. A one-event increment or
-a zero observed event count is not a confidence interval or proof of a rare
-failure target.
+alone over the route length and cannot be added. A one-event increment or zero
+observed event count is not a confidence interval or proof of a rare failure
+target.
 
 Smaller initial cracks do not remove future crack initiation from initially
 clean joints, the sizing/property uncertainties, or later-year growth. The

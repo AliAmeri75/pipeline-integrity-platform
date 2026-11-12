@@ -9,8 +9,8 @@ def interval_safety_rows(results, method):
     rows = []
     for result in results:
         times = np.asarray(result['times'])
-        leak = np.asarray(result['leak_hazard'])
-        burst = np.asarray(result['burst_hazard'])
+        leak = np.asarray(result['leak_annual_pof'])
+        burst = np.asarray(result['burst_annual_pof'])
         leak_limit = float(result['max_annual_leak_pof'])
         burst_limit = float(result['max_annual_burst_pof'])
         leak_exceeded, burst_exceeded = leak > leak_limit, burst > burst_limit
@@ -20,9 +20,9 @@ def interval_safety_rows(results, method):
             'Method': method,
             'Interval (years)': result['interval'],
             'Status': 'Unsafe' if len(exceeded) else 'Safe',
-            'Peak annual PfL / km-year': float(np.max(leak)),
+            'Peak annual whole-pipeline PfL': float(np.max(leak)),
             'Leakage peak year': float(times[np.argmax(leak)]),
-            'Peak annual PfB / km-year': float(np.max(burst)),
+            'Peak annual whole-pipeline PfB': float(np.max(burst)),
             'Burst peak year': float(times[np.argmax(burst)]),
             'First limit exceedance (year)': float(times[exceeded[0]]) if len(exceeded) else None,
             'Exceeded criterion': ' and '.join(modes) if modes else 'None',

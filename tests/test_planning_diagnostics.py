@@ -7,7 +7,7 @@ from inspection_planning.diagnostics import interval_safety_rows, joint_safety_r
 class PlanningDiagnosticsTests(unittest.TestCase):
     def result(self):
         return dict(interval=5, times=[0., 1., 2.],
-            leak_hazard=[0., .001, .002], burst_hazard=[0., .0001, .002],
+            leak_annual_pof=[0., .001, .002], burst_annual_pof=[0., .0001, .002],
             max_annual_leak_pof=.01, max_annual_burst_pof=.001)
 
     def test_rejected_interval_identifies_burst_and_the_first_exceeded_year(self):
@@ -15,11 +15,11 @@ class PlanningDiagnosticsTests(unittest.TestCase):
         self.assertEqual(row['Status'], 'Unsafe')
         self.assertEqual(row['First limit exceedance (year)'], 2.)
         self.assertEqual(row['Exceeded criterion'], 'Burst')
-        self.assertEqual(row['Peak annual PfB / km-year'], .002)
+        self.assertEqual(row['Peak annual whole-pipeline PfB'], .002)
 
     def test_safe_interval_has_no_exceedance_or_rejected_mode(self):
         result = self.result()
-        result['burst_hazard'] = [0., .0001, .001]
+        result['burst_annual_pof'] = [0., .0001, .001]
         row = interval_safety_rows([result], 'ILI-informed')[0]
         self.assertEqual(row['Status'], 'Safe')
         self.assertIsNone(row['First limit exceedance (year)'])
