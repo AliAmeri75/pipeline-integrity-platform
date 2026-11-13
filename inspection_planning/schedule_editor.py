@@ -135,20 +135,73 @@ def copy_name(name, names):
     return result
 
 
-def duplicate_ili_row(rows, rows_key):
-    if not rows:
-        return
-    index = st.selectbox("ILI row to duplicate", range(len(rows)),
-        format_func=lambda i: f"{i + 1}. {cell(rows[i].get(PLAN)) or 'Unnamed plan'}",
-        key=rows_key + "_copy_source")
-    if st.button("Duplicate ILI row", key=rows_key + "_copy"):
-        duplicate = dict(rows[index])
-        duplicate[PLAN] = copy_name(cell(duplicate.get(PLAN)) or "ILI plan",
-                                    [cell(r.get(PLAN)) for r in rows])
-        st.session_state[rows_key] = rows[:index + 1] + [duplicate] + rows[index + 1:]
-        revision = rows_key + "_revision"
-        st.session_state[revision] = st.session_state.get(revision, 0) + 1
+def render_ili_rows(dataset, horizon, default_interval):
+    rows_key = "custom_ili_plan_rows_v2_" + dataset
+    revision_key = rows_key + "_revision"
+    revision = st.session_state.get(revision_key, 0)
+    editor_key = f"custom_ili_plan_editor_v4_{dataset}_{revision}"
+    default_row = {
+        PLAN: "Pre-posterior plan 1",
+        KIND: FIXED,
+        INTERVAL: default_interval,
+        "Manual inspection years": "",
+    }
+    frame = schedule_editor_input(rows_key, editor_key, default_row, horizon)
+    actions = "Actions"
+    editor = st.data_editor(
+        frame.assign(**{actions: "⋯"}),
+        key=editor_key, hide_index=True, num_rows="dynamic", width="stretch",
+        column_order=[actions, *default_row],
+        column_config={
+            actions: st.column_config.SelectboxColumn(
+                "Actions", options=["⋯", "Duplicate", "Delete"], default="⋯",
+                width=83, pinned=True, help="Choose an action for this ILI plan.",
+            ),
+            "Plan name": st.column_config.TextColumn(
+                "Plan name", required=False
+            ),
+            "Schedule type": st.column_config.SelectboxColumn(
+                "Schedule type",
+                options=["Fixed interval", "Manual years"],
+                help="Choose whether this row uses a repeat interval or listed years.",
+                required=False,
+            ),
+            "Interval (years)": st.column_config.NumberColumn(
+                "Interval (years)",
+                min_value=1,
+                max_value=int(horizon),
+                step=1,
+                format="%d",
+                required=False,
+                help="Used when Schedule type is Fixed interval.",
+            ),
+            "Manual inspection years": st.column_config.TextColumn(
+                "Manual inspection years",
+                help="Comma-separated years, such as 2, 10, 15. Used in Manual years mode.",
+                required=False,
+            ),
+        },
+    )
+    rows = editor.drop(columns=actions).to_dict(orient="records")
+    commands = editor[actions].tolist()
+    used_names = [cell(row.get(PLAN)) for row in rows]
+    if any(cell(command) in ("Duplicate", "Delete") for command in commands):
+        updated = []
+        for row, command in zip(rows, commands):
+            command = cell(command)
+            if command == "Delete":
+                continue
+            updated.append(row)
+            if command == "Duplicate":
+                name = copy_name(cell(row.get(PLAN)) or "ILI plan", used_names)
+                updated.append({**row, PLAN: name})
+                used_names.append(name)
+        st.session_state[rows_key] = updated
+        # Clear handled commands and old row offsets before showing the new rows.
+        st.session_state[revision_key] = revision + 1
         st.rerun()
+    st.session_state[rows_key] = rows
+    return rows
 
 
 def render_prior_plans(dataset, joints, horizon, default_interval):
@@ -230,17 +283,6 @@ def render_prior_plans(dataset, joints, horizon, default_interval):
     )
     rows = table.to_dict(orient="records")
     state[table_key] = rows
-    if len(rows) > 1:
-        with st.expander("Duplicate a joint schedule"):
-            source = st.selectbox("Copy schedule from", joint_names, key=draft_key + "_source")
-            destinations = st.multiselect("Replace schedule for", [j for j in joint_names if j != source],
-                                          key=draft_key + "_targets_" + source)
-            if st.button("Copy schedule", disabled=not destinations, key=draft_key + "_copy"):
-                template = next(r for r in rows if r[JOINT] == source)
-                state[table_key] = [dict(template, **{JOINT: r[JOINT]}) if r[JOINT] in destinations
-                                    else r for r in rows]
-                state[revision_key] += 1
-                st.rerun()
 
     save, cancel = st.columns(2)
     if save.button("Save prior plan", key=rows_key + "_save", type="primary"):
