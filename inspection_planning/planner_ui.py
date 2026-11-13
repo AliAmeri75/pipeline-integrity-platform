@@ -1155,7 +1155,7 @@ def render_planner(*, show_header=True):
                 ))
                 prior_default_interval = min(int(prior_interval_start), int(horizon))
             custom_prior_enabled = settings.checkbox(
-                "Add named prior schedules",
+                "Add user-defined schedules",
                 value=False,
                 key="include_named_prior_schedules",
             )
@@ -1192,7 +1192,7 @@ def render_planner(*, show_header=True):
                 ))
                 ili_default_interval = min(int(ili_interval_start), int(horizon))
             custom_ili_enabled = settings.checkbox(
-                "Add named pre-posterior schedules",
+                "Add user-defined schedules",
                 value=False,
                 key="include_named_ili_schedules",
             )
