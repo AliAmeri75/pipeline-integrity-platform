@@ -33,7 +33,7 @@ def render_planner(*, show_header=True):
     from profile_map import point_at_chainage
     from inspection_planning.risk_map import sliding_window_reliability, reliability_map
     from inspection_planning.schedule_editor import (
-        duplicate_ili_row, parse_manual_years, prior_candidates, render_prior_plans, schedule_editor_input,
+        parse_manual_years, prior_candidates, render_ili_rows, render_prior_plans,
     )
     from inspection_planning.settings import PlanningSettings
     from inspection_planning.execution import run_batched_flexible_simulation, effective_batch_size, EXECUTION_REVISION
@@ -1198,56 +1198,9 @@ def render_planner(*, show_header=True):
             )
             if custom_ili_enabled:
                 st.caption(
-                    "Add one row per plan. Select a fixed interval or enter exact inspection years."
+                    "Add one row per ILI plan. Use the Actions cell in a row to duplicate or delete it."
                 )
-                ili_rows_key = "custom_ili_plan_rows_v2_" + handoff["dataset_id"][:12]
-                ili_editor_key = "custom_ili_plan_editor_v3_" + handoff["dataset_id"][:12]
-                revision = st.session_state.get(ili_rows_key + "_revision", 0)
-                if revision:
-                    ili_editor_key += f"_{revision}"
-                default_ili_row = {
-                    "Plan name": "Pre-posterior plan 1",
-                    "Schedule type": "Fixed interval",
-                    "Interval (years)": ili_default_interval,
-                    "Manual inspection years": "",
-                }
-                ili_editor = st.data_editor(
-                    schedule_editor_input(
-                        ili_rows_key, ili_editor_key, default_ili_row, horizon
-                    ),
-                    key=ili_editor_key,
-                    hide_index=True,
-                    num_rows="dynamic",
-                    width="stretch",
-                    column_config={
-                        "Plan name": st.column_config.TextColumn(
-                            "Plan name", required=False
-                        ),
-                        "Schedule type": st.column_config.SelectboxColumn(
-                            "Schedule type",
-                            options=["Fixed interval", "Manual years"],
-                            help="Choose whether this row uses a repeat interval or listed years.",
-                            required=False,
-                        ),
-                        "Interval (years)": st.column_config.NumberColumn(
-                            "Interval (years)",
-                            min_value=1,
-                            max_value=int(horizon),
-                            step=1,
-                            format="%d",
-                            required=False,
-                            help="Used when Schedule type is Fixed interval.",
-                        ),
-                        "Manual inspection years": st.column_config.TextColumn(
-                            "Manual inspection years",
-                            help="Comma-separated years, such as 2, 10, 15. Used in Manual years mode.",
-                            required=False,
-                        ),
-                    },
-                )
-                ili_rows = ili_editor.to_dict(orient="records")
-                st.session_state[ili_rows_key] = ili_rows
-                duplicate_ili_row(ili_rows, ili_rows_key)
+                ili_rows = render_ili_rows(handoff["dataset_id"][:12], int(horizon), ili_default_interval)
 
                 try:
                     ili_groups = {}
