@@ -641,18 +641,18 @@ def render_planner(*, show_header=True):
                   COLORS["violet"], COLORS["blue"]]
         for index, result in enumerate(results):
             color = colors[index % len(colors)]
-            name = _plan_label(result)
+            if result.get("is_user_defined"):
+                schedule = result.get("plan_name") or "User-defined plan"
+            else:
+                schedule = f"interval {result['interval']:g}"
             if include_method:
-                method_prefix = (
-                    "Prior — " if result["decision_mode"] == EXCAVATION_DECISION_MODE
-                    else "ILI — "
-                )
-                name = method_prefix + name
+                method = "prior" if result["decision_mode"] == EXCAVATION_DECISION_MODE else "ILI"
+                schedule = f"{schedule} ({method})"
             figure.add_trace(
                 go.Scatter(
                     x=result["times"],
                     y=np.maximum(result["leak_annual_pof"], 1e-12),
-                    name=f"{name} — leakage",
+                    name=f"Leakage-{schedule}",
                     mode="lines+markers",
                     line={"color": color, "width": 2.4},
                     marker={"size": 4},
@@ -662,7 +662,7 @@ def render_planner(*, show_header=True):
                 go.Scatter(
                     x=result["times"],
                     y=np.maximum(result["burst_annual_pof"], 1e-12),
-                    name=f"{name} — burst",
+                    name=f"Burst-{schedule}",
                     mode="lines+markers",
                     line={"color": color, "width": 2.4, "dash": "dash"},
                     marker={"size": 4, "symbol": "square"},
