@@ -485,7 +485,34 @@ def render_planner(*, show_header=True):
         )
 
 
-    def cost_figure(results, title, interval_label, total_label):
+    def select_cost_plans(results, label, key, study_signature, *, show_method=False):
+        labels = {}
+        for result in results:
+            name = result["plan_name"] if result.get("is_user_defined") else _plan_label(result)
+            if show_method:
+                method = "Prior" if result["decision_mode"] == EXCAVATION_DECISION_MODE else "ILI"
+                name = f"{method} — {name}"
+            labels[result["candidate_id"]] = name
+
+        ids = list(labels)
+        visible_ids = set(st.multiselect(
+            label, options=ids, default=ids, format_func=labels.__getitem__,
+            key=f"{key}_plans_{study_signature}",
+        ))
+        # A changed set of points invalidates a previous Plotly point selection.
+        selection = hashlib.sha256(repr(sorted(visible_ids)).encode()).hexdigest()[:16]
+        return visible_ids, f"{key}_{study_signature}_{selection}"
+
+
+    def cost_plan_groups(results, visible_ids):
+        named = [r for r in results if r.get("is_user_defined")]
+        best = min(named, key=lambda r: (not r["is_safe"], r["total_cpp"]), default=None)
+        fixed = [r for r in results if not r.get("is_user_defined") and r["candidate_id"] in visible_ids]
+        visible_named = [r for r in named if r["candidate_id"] in visible_ids]
+        return fixed, visible_named, best["candidate_id"] if best is not None else None
+
+
+    def cost_figure(results, title, interval_label, total_label, visible_ids):
         figure = base_figure(
             title,
             interval_label,
@@ -497,14 +524,7 @@ def render_planner(*, show_header=True):
             ("Repair cost, Cr", "repair_cost", COLORS["teal"]),
             ("Inspection cost, Ci", "inspection_cost", COLORS["amber"]),
         ]
-        fixed_results = [result for result in results if not result.get("is_user_defined")]
-        custom_results = [result for result in results if result.get("is_user_defined")]
-        best_custom = min(
-            [result for result in custom_results if result["is_safe"]],
-            key=lambda result: result["total_cpp"],
-            default=min(custom_results, key=lambda result: result["total_cpp"]) if custom_results else None,
-        )
-        best_custom_id = best_custom.get("candidate_id") if best_custom else None
+        fixed_results, custom_results, best_custom_id = cost_plan_groups(results, visible_ids)
         for label, key, color in styles:
             if fixed_results:
                 figure.add_trace(
@@ -563,31 +583,20 @@ def render_planner(*, show_header=True):
         return list(points or [])
 
 
-    def _result_at_interval(results, interval):
-        try:
-            selected_interval = float(interval)
-        except (TypeError, ValueError):
+    def _result_from_point(results, point, figure):
+        data = point.get("customdata")
+        if data is None:
+            curve = point.get("curve_number", point.get("curveNumber"))
+            index = point.get("point_index", point.get("pointIndex"))
+            if curve is None or index is None or not 0 <= curve < len(figure.data):
+                return None
+            rows = figure.data[curve].customdata
+            if rows is None or not 0 <= index < len(rows):
+                return None
+            data = rows[index]
+        if len(data) < 8:
             return None
-        return next(
-            (
-                result
-                for result in results
-                if np.isclose(_chart_interval(result), selected_interval)
-            ),
-            None,
-        )
-
-
-    def _result_from_point(results, point):
-        custom = point.get("customdata") if isinstance(point, dict) else getattr(point, "customdata", None)
-        if custom is not None and len(custom) >= 8:
-            candidate_id = str(custom[7])
-            match = next((result for result in results
-                          if str(result.get("candidate_id", "")) == candidate_id), None)
-            if match is not None:
-                return match
-        x_value = point.get("x") if isinstance(point, dict) else getattr(point, "x", None)
-        return _result_at_interval(results, x_value)
+        return next((r for r in results if r["candidate_id"] == data[7]), None)
 
 
     def show_selected_cost(result, total_label):
@@ -611,20 +620,23 @@ def render_planner(*, show_header=True):
         )
 
 
-    def show_selectable_cost_figure(results, title, interval_label, total_label, key):
+    def show_selectable_cost_figure(results, title, interval_label, total_label, key, study_signature):
+        visible_ids, chart_key = select_cost_plans(
+            results, f"Plans on the {total_label} chart", key, study_signature,
+        )
+        if not visible_ids:
+            st.caption(f"Select a plan to show its {total_label} and cost components.")
+            return
         st.caption(
             "Fixed intervals are connected as curves. User-defined schedules are separate points "
             "at their equivalent mean gap; hover for the exact schedule. Click a point for metrics. "
             "★ Lowest-cost safe user plan (or lowest-cost user plan if none are safe); ○ Safe   × Unsafe"
         )
-        event = show_figure(
-            cost_figure(results, title, interval_label, total_label),
-            key=key,
-            selectable=True,
-        )
+        figure = cost_figure(results, title, interval_label, total_label, visible_ids)
+        event = show_figure(figure, key=chart_key, selectable=True)
         points = _selected_points(event)
         if points:
-            show_selected_cost(_result_from_point(results, points[0]), total_label)
+            show_selected_cost(_result_from_point(results, points[0], figure), total_label)
 
 
     def annual_pof_figure(results, schedule_label, include_method=False):
@@ -724,7 +736,7 @@ def render_planner(*, show_header=True):
         )
 
 
-    def comparison_cost_figure(prior_results, ili_results):
+    def comparison_cost_figure(prior_results, ili_results, visible_ids):
         figure = base_figure(
             "Prior excavation versus ILI-informed schedules",
             "Fixed interval / equivalent mean gap (years)",
@@ -734,8 +746,7 @@ def render_planner(*, show_header=True):
             (prior_results, "Prior: excavation without ILI", COLORS["amber"], "Cprior"),
             (ili_results, "Pre-posterior: ILI-informed", COLORS["teal"], "Cpp"),
         ]:
-            fixed = [result for result in results if not result.get("is_user_defined")]
-            custom = [result for result in results if result.get("is_user_defined")]
+            fixed, custom, best_custom_id = cost_plan_groups(results, visible_ids)
             if fixed:
                 figure.add_trace(
                     go.Scatter(
@@ -753,12 +764,6 @@ def render_planner(*, show_header=True):
                     )
                 )
             if custom:
-                best_custom = min(
-                    [result for result in custom if result["is_safe"]],
-                    key=lambda result: result["total_cpp"],
-                    default=min(custom, key=lambda result: result["total_cpp"]),
-                )
-                best_custom_id = best_custom.get("candidate_id")
                 figure.add_trace(
                     go.Scatter(
                         x=[_chart_interval(result) for result in custom],
@@ -783,20 +788,25 @@ def render_planner(*, show_header=True):
         return figure
 
 
-    def show_comparison_cost_figure(prior_results, ili_results):
+    def show_comparison_cost_figure(prior_results, ili_results, study_signature):
+        results = prior_results + ili_results
+        visible_ids, chart_key = select_cost_plans(
+            results, "Plans on the cost comparison chart", "comparison_cost_selection",
+            study_signature, show_method=True,
+        )
+        if not visible_ids:
+            st.caption("Select a prior or ILI plan to compare lifecycle costs.")
+            return
         st.caption(
             "User-defined schedules appear as individual points at an equivalent mean gap. "
             "Hover to see each exact schedule and its Cf, Cr, Ci, and safety status."
         )
-        event = show_figure(
-            comparison_cost_figure(prior_results, ili_results),
-            key="comparison_cost_selection",
-            selectable=True,
-        )
+        figure = comparison_cost_figure(prior_results, ili_results, visible_ids)
+        event = show_figure(figure, key=chart_key, selectable=True)
         points = _selected_points(event)
         if not points:
             return
-        result = _result_from_point(prior_results + ili_results, points[0])
+        result = _result_from_point(results, points[0], figure)
         if result is not None:
             total_label = "Cprior" if result["decision_mode"] == EXCAVATION_DECISION_MODE else "Cpp"
             show_selected_cost(result, total_label)
@@ -1886,7 +1896,7 @@ def render_planner(*, show_header=True):
             ["VoI comparison", "Prior excavation (no ILI)", "Pre-posterior (ILI)"]
         )
         with comparison_tab:
-            show_comparison_cost_figure(prior_results, ili_results)
+            show_comparison_cost_figure(prior_results, ili_results, study["run_signature"])
             combined_candidates = prior_results + ili_results
             default_profile_indices = []
             for preferred_result in (prior_safe, ili_safe):
@@ -1972,7 +1982,7 @@ def render_planner(*, show_header=True):
                 "Prior lifecycle cost versus excavation interval",
                 "Fixed interval / equivalent mean gap (years)",
                 "Cprior",
-                "prior_cost_selection",
+                "prior_cost_selection", study["run_signature"],
             )
             prior_default_index = next(
                 i for i, candidate in enumerate(prior_results)
@@ -2049,7 +2059,7 @@ def render_planner(*, show_header=True):
                 "Pre-posterior lifecycle cost versus ILI interval",
                 "Fixed interval / equivalent mean gap (years)",
                 "Cpp",
-                "ili_cost_selection",
+                "ili_cost_selection", study["run_signature"],
             )
             ili_default_index = next(
                 i for i, candidate in enumerate(ili_results)
