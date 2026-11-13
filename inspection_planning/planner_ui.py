@@ -230,6 +230,8 @@ def render_planner(*, show_header=True):
         result_key = "prior_results" if decision_mode == EXCAVATION_DECISION_MODE else "ili_results"
         log_key = "prior_log" if decision_mode == EXCAVATION_DECISION_MODE else "ili_log"
         results = job.setdefault(result_key, [])
+        if not intervals:
+            return results, job.get(log_key, "")
         progress = st.progress(0, text=f"Preparing {method_label} simulations…")
         log = io.StringIO()
         log.write(job.get(log_key, ""))
@@ -1139,19 +1141,26 @@ def render_planner(*, show_header=True):
     plan_left, plan_right = st.columns(2)
     with plan_left:
         with st.expander("Prior plan", expanded=False):
-            st.caption(
-                "Run fixed excavation intervals and, if selected, add named schedules "
-                "for the initially cracked joints."
-            )
-            prior_interval_start = settings.number_input(
-                "First fixed excavation interval (years)", 1, 100, 5, 1
-            )
-            prior_interval_end = settings.number_input(
-                "Last fixed excavation interval (years)", 1, 100, 20, 1
-            )
-            prior_interval_step = settings.number_input(
-                "Fixed excavation interval step (years)", 1, 50, 5, 1
-            )
+            prior_intervals = []
+            prior_default_interval = min(5, int(horizon))
+            if settings.checkbox(
+                "Include fixed excavation interval range",
+                value=True,
+                key="include_prior_interval_range",
+            ):
+                prior_interval_start = settings.number_input(
+                    "First fixed excavation interval (years)", 1, 100, 5, 1
+                )
+                prior_interval_end = settings.number_input(
+                    "Last fixed excavation interval (years)", 1, 100, 20, 1
+                )
+                prior_interval_step = settings.number_input(
+                    "Fixed excavation interval step (years)", 1, 50, 5, 1
+                )
+                prior_intervals = list(range(
+                    int(prior_interval_start), int(prior_interval_end) + 1, int(prior_interval_step)
+                ))
+                prior_default_interval = min(int(prior_interval_start), int(horizon))
             custom_prior_enabled = settings.checkbox(
                 "Add named prior schedules",
                 value=False,
@@ -1162,9 +1171,6 @@ def render_planner(*, show_header=True):
                     "Add one row per schedule assignment. Repeat a plan name to assign "
                     "different schedules to different joints. Choose All cracked joints "
                     "for one schedule applied to all."
-                )
-                prior_default_interval = min(
-                    max(1, int(prior_interval_start)), int(horizon)
                 )
                 prior_rows_key = "custom_prior_plan_rows_v2_" + handoff["dataset_id"][:12]
                 prior_editor_key = "custom_prior_plan_editor_v2_" + handoff["dataset_id"][:12]
@@ -1332,19 +1338,26 @@ def render_planner(*, show_header=True):
 
     with plan_right:
         with st.expander("Pre-posterior plan", expanded=False):
-            st.caption(
-                "Run fixed ILI intervals and, if selected, add named ILI schedules "
-                "for the whole pipeline."
-            )
-            ili_interval_start = settings.number_input(
-                "First fixed ILI interval (years)", 1, 100, 5, 1
-            )
-            ili_interval_end = settings.number_input(
-                "Last fixed ILI interval (years)", 1, 100, 20, 1
-            )
-            ili_interval_step = settings.number_input(
-                "Fixed ILI interval step (years)", 1, 50, 5, 1
-            )
+            ili_intervals = []
+            ili_default_interval = min(5, int(horizon))
+            if settings.checkbox(
+                "Include fixed ILI interval range",
+                value=True,
+                key="include_ili_interval_range",
+            ):
+                ili_interval_start = settings.number_input(
+                    "First fixed ILI interval (years)", 1, 100, 5, 1
+                )
+                ili_interval_end = settings.number_input(
+                    "Last fixed ILI interval (years)", 1, 100, 20, 1
+                )
+                ili_interval_step = settings.number_input(
+                    "Fixed ILI interval step (years)", 1, 50, 5, 1
+                )
+                ili_intervals = list(range(
+                    int(ili_interval_start), int(ili_interval_end) + 1, int(ili_interval_step)
+                ))
+                ili_default_interval = min(int(ili_interval_start), int(horizon))
             custom_ili_enabled = settings.checkbox(
                 "Add named pre-posterior schedules",
                 value=False,
@@ -1353,9 +1366,6 @@ def render_planner(*, show_header=True):
             if custom_ili_enabled:
                 st.caption(
                     "Add one row per plan. Select a fixed interval or enter exact inspection years."
-                )
-                ili_default_interval = min(
-                    max(1, int(ili_interval_start)), int(horizon)
                 )
                 ili_rows_key = "custom_ili_plan_rows_v2_" + handoff["dataset_id"][:12]
                 ili_editor_key = "custom_ili_plan_editor_v2_" + handoff["dataset_id"][:12]
@@ -1461,16 +1471,6 @@ def render_planner(*, show_header=True):
                     st.error(custom_schedule_error)
 
     custom_plan_enabled = custom_prior_enabled or custom_ili_enabled
-    prior_intervals = (
-        list(range(int(prior_interval_start), int(prior_interval_end) + 1, int(prior_interval_step)))
-        if prior_interval_start <= prior_interval_end
-        else []
-    )
-    ili_intervals = (
-        list(range(int(ili_interval_start), int(ili_interval_end) + 1, int(ili_interval_step)))
-        if ili_interval_start <= ili_interval_end
-        else []
-    )
     user_plan_count = sum(len(plans) for plans in custom_plan_config.values())
     expected_new_cracks = sum(
         joint["count"] * joint["birth_rate"] * horizon for joint in joints
@@ -1596,6 +1596,12 @@ def render_planner(*, show_header=True):
     )
     prior_candidate_total = len(prior_intervals) + len(custom_plan_config["prior"])
     ili_candidate_total = len(ili_intervals) + len(custom_plan_config["ili"])
+    if not custom_schedule_error:
+        for section, count in [("Prior plan", prior_candidate_total), ("Pre-posterior plan", ili_candidate_total)]:
+            if count == 0:
+                st.info(f"{section} needs at least one schedule. Choose a fixed interval range "
+                        "that includes at least one interval, or enter a named schedule.")
+
     if resumable:
         finished_prior = len(job.get("prior_results", []))
         finished_ili = len(job.get("ili_results", []))
