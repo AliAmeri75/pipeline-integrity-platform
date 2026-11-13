@@ -1,5 +1,6 @@
 """Named excavation plans and schedule-table editing for static planning."""
 import hashlib
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -41,22 +42,50 @@ def parse_manual_years(value, label, horizon_years):
     return sorted(years)
 
 
-def schedule_editor_input(rows_key, editor_key, default_row, horizon, joint_options=()):
-    # A dynamic data editor applies all cell and row edits to its original input.
-    # Only start a new baseline when reopening the editor or changing its schema.
-    baseline_key = rows_key + "_baseline"
-    config = (int(horizon), tuple(joint_options))
-    baseline = st.session_state.get(baseline_key)
-    if editor_key not in st.session_state or baseline is None or baseline[0] != config:
-        rows = st.session_state.get(rows_key, [default_row])
-        frame = pd.DataFrame.from_records(rows, columns=list(default_row))
-        frame = frame.astype({
-            column: "Int64" if column == "Interval (years)" else "string"
-            for column in default_row
-        })
-        baseline = (config, frame)
-        st.session_state[baseline_key] = baseline
-    return baseline[1]
+_schedule_table = st.components.v2.component(
+    "alirim_schedule_table",
+    html='<div class="schedule-table"></div>',
+    js=Path(__file__).with_name("schedule_table.js").read_text(encoding="utf-8"),
+    css=""".schedule-table { font: inherit; color: var(--st-text-color, inherit); }
+.scroll { overflow-x: auto; border-radius: .4rem; border: 1px solid var(--st-border-color, #bdc9c4); }
+table { width: 100%; border-collapse: collapse; font-size: .9rem; }
+th, td { padding: .35rem; text-align: left; vertical-align: middle; }
+th { background: var(--st-secondary-background-color, #edf1ef); font-size: .82rem; }
+tbody tr + tr { border-top: 1px solid var(--st-border-color, #bdc9c4); }
+input, select, button { font: inherit; color: inherit; background: var(--st-background-color, white);
+    border: 1px solid var(--st-border-color, #aab8b0); border-radius: .3rem; padding: .35rem; }
+input, select { box-sizing: border-box; width: 100%; }
+input { min-width: 5rem; }
+td:last-child { min-width: 7rem; }
+select.actions { width: 3.3rem; }
+label span { display: block; font-size: .75rem; margin-bottom: .15rem; }
+button { margin-top: .4rem; cursor: pointer; }
+:focus-visible { outline: 2px solid var(--st-primary-color, #207357); outline-offset: 1px; }""",
+)
+
+
+def edit_schedule_rows(rows_key, widget_key, rows, horizon, default_interval, *, prior):
+    """Render one mode-specific value field per row; retain both drafts in session."""
+    manual = MANUAL if prior else "Manual inspection years"
+    identity = JOINT if prior else PLAN
+
+    def normalized(row):
+        value = row.get(INTERVAL)
+        return {identity: cell(row.get(identity)), KIND: cell(row.get(KIND)) or FIXED,
+                INTERVAL: None if pd.isna(value) else float(value), manual: cell(row.get(manual))}
+
+    initial = [normalized(row) for row in rows]
+    result = _schedule_table(
+        key=widget_key,
+        data={"instance": widget_key, "rows": initial, "prior": prior,
+              "horizon": int(horizon), "defaultInterval": int(default_interval)},
+        default={"rows": initial}, on_rows_change=lambda: None,
+    )
+    edited = [normalized(row) for row in result.rows]
+    if prior and [r[JOINT] for r in edited] != [r[JOINT] for r in initial]:
+        raise ValueError("Excavation rows must match the cracked joints in this plan.")
+    st.session_state[rows_key] = edited
+    return edited
 
 
 def prior_candidates(rows, joints, horizon):
@@ -137,71 +166,12 @@ def copy_name(name, names):
 
 def render_ili_rows(dataset, horizon, default_interval):
     rows_key = "custom_ili_plan_rows_v2_" + dataset
-    revision_key = rows_key + "_revision"
-    revision = st.session_state.get(revision_key, 0)
-    editor_key = f"custom_ili_plan_editor_v4_{dataset}_{revision}"
-    default_row = {
-        PLAN: "Pre-posterior plan 1",
-        KIND: FIXED,
-        INTERVAL: default_interval,
-        "Manual inspection years": "",
-    }
-    frame = schedule_editor_input(rows_key, editor_key, default_row, horizon)
-    actions = "Actions"
-    editor = st.data_editor(
-        frame.assign(**{actions: "⋯"}),
-        key=editor_key, hide_index=True, num_rows="dynamic", width="stretch",
-        column_order=[actions, *default_row],
-        column_config={
-            actions: st.column_config.SelectboxColumn(
-                "Actions", options=["⋯", "Duplicate", "Delete"], default="⋯",
-                width=83, pinned=True, help="Choose an action for this ILI plan.",
-            ),
-            "Plan name": st.column_config.TextColumn(
-                "Plan name", required=False
-            ),
-            "Schedule type": st.column_config.SelectboxColumn(
-                "Schedule type",
-                options=["Fixed interval", "Manual years"],
-                help="Choose whether this row uses a repeat interval or listed years.",
-                required=False,
-            ),
-            "Interval (years)": st.column_config.NumberColumn(
-                "Interval (years)",
-                min_value=1,
-                max_value=int(horizon),
-                step=1,
-                format="%d",
-                required=False,
-                help="Used when Schedule type is Fixed interval.",
-            ),
-            "Manual inspection years": st.column_config.TextColumn(
-                "Manual inspection years",
-                help="Comma-separated years, such as 2, 10, 15. Used in Manual years mode.",
-                required=False,
-            ),
-        },
+    default_row = {PLAN: "Pre-posterior plan 1", KIND: FIXED,
+                   INTERVAL: default_interval, "Manual inspection years": ""}
+    return edit_schedule_rows(
+        rows_key, "ili_schedule_table_" + dataset, st.session_state.get(rows_key, [default_row]),
+        horizon, default_interval, prior=False,
     )
-    rows = editor.drop(columns=actions).to_dict(orient="records")
-    commands = editor[actions].tolist()
-    used_names = [cell(row.get(PLAN)) for row in rows]
-    if any(cell(command) in ("Duplicate", "Delete") for command in commands):
-        updated = []
-        for row, command in zip(rows, commands):
-            command = cell(command)
-            if command == "Delete":
-                continue
-            updated.append(row)
-            if command == "Duplicate":
-                name = copy_name(cell(row.get(PLAN)) or "ILI plan", used_names)
-                updated.append({**row, PLAN: name})
-                used_names.append(name)
-        st.session_state[rows_key] = updated
-        # Clear handled commands and old row offsets before showing the new rows.
-        st.session_state[revision_key] = revision + 1
-        st.rerun()
-    st.session_state[rows_key] = rows
-    return rows
 
 
 def render_prior_plans(dataset, joints, horizon, default_interval):
@@ -271,18 +241,7 @@ def render_prior_plans(dataset, joints, horizon, default_interval):
     name = st.text_input("Prior plan name", value=draft["name"], key=draft_key + "_name").strip()
     draft["name"] = name
     editor_key = draft_key + "_table_" + str(state[revision_key])
-    table = st.data_editor(
-        schedule_editor_input(table_key, editor_key, default, horizon, joint_names),
-        key=editor_key, hide_index=True, num_rows="fixed", width="stretch", disabled=[JOINT],
-        column_config={
-            KIND: st.column_config.SelectboxColumn(KIND, options=[FIXED, LISTED, NONE], required=True),
-            INTERVAL: st.column_config.NumberColumn(INTERVAL, min_value=1, max_value=horizon,
-                                                    step=1, format="%d"),
-            MANUAL: st.column_config.TextColumn(MANUAL, help="For Manual years, enter years such as 3, 5, 20."),
-        },
-    )
-    rows = table.to_dict(orient="records")
-    state[table_key] = rows
+    rows = edit_schedule_rows(table_key, editor_key, state[table_key], horizon, default_interval, prior=True)
 
     save, cancel = st.columns(2)
     if save.button("Save prior plan", key=rows_key + "_save", type="primary"):
