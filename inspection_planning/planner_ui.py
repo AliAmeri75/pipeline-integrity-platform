@@ -1630,7 +1630,7 @@ def render_planner(*, show_header=True):
             st.exception(exc)
 
 
-        study = st.session_state.get("integrated_planning_comparison")
+    study = st.session_state.get("integrated_planning_comparison")
     if study and study.get("run_signature") != run_signature:
         st.info("The saved dataset or planning settings changed. Run the comparison again to update the results.")
         study = None
