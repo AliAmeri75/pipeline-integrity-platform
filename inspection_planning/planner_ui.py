@@ -32,6 +32,9 @@ def render_planner(*, show_header=True):
     from planning_project import planning_handoff, planning_joints
     from profile_map import point_at_chainage
     from inspection_planning.risk_map import sliding_window_reliability, reliability_map
+    from inspection_planning.schedule_editor import (
+        duplicate_ili_row, parse_manual_years, prior_candidates, render_prior_plans, schedule_editor_input,
+    )
     from inspection_planning.settings import PlanningSettings
     from inspection_planning.execution import run_batched_flexible_simulation, effective_batch_size, EXECUTION_REVISION
     from inspection_planning.diagnostics import interval_safety_rows, joint_safety_rows
@@ -200,26 +203,6 @@ def render_planner(*, show_header=True):
             "requested_samples": debug["requested_samples"],
             "retained_samples": debug["retained_samples"],
         }
-
-
-    def parse_manual_years(value, label, horizon_years):
-        """Parse comma-separated integer intervention years."""
-        text = str(value or "").strip()
-        if not text:
-            raise ValueError(f"{label}: enter one or more years.")
-        parts = [part.strip() for part in text.replace(";", ",").split(",") if part.strip()]
-        try:
-            values = [float(part) for part in parts]
-        except ValueError as exc:
-            raise ValueError(f"{label}: use whole years separated by commas, for example 2, 10, 15.") from exc
-        if not values or any(not np.isfinite(year) or not year.is_integer() for year in values):
-            raise ValueError(f"{label}: each entry must be a whole year.")
-        years = [int(year) for year in values]
-        if any(year < 1 or year > horizon_years for year in years):
-            raise ValueError(f"{label}: years must be from 1 to {int(horizon_years)}.")
-        if len(set(years)) != len(years):
-            raise ValueError(f"{label}: remove duplicate years.")
-        return sorted(years)
 
 
     def run_interval_study(joints, intervals, model, decision_mode, job):
@@ -1142,29 +1125,11 @@ def render_planner(*, show_header=True):
     custom_plan_config = {"prior": [], "ili": []}
     custom_schedule_error = None
     cracked_joint_models = [joint for joint in joints if joint.get("cracks")]
-    cracked_joint_names = [joint["name"] for joint in cracked_joint_models]
     custom_prior_enabled = False
     custom_ili_enabled = False
 
     def _text_cell(value):
         return "" if value is None or pd.isna(value) else str(value).strip()
-
-    def schedule_editor_input(rows_key, editor_key, default_row, joint_options=()):
-        # A dynamic data editor applies all cell and row edits to its original input.
-        # Only start a new baseline when reopening the editor or changing its schema.
-        baseline_key = rows_key + "_baseline"
-        config = (int(horizon), tuple(joint_options))
-        baseline = st.session_state.get(baseline_key)
-        if editor_key not in st.session_state or baseline is None or baseline[0] != config:
-            rows = st.session_state.get(rows_key, [default_row])
-            frame = pd.DataFrame.from_records(rows, columns=list(default_row))
-            frame = frame.astype({
-                column: "Int64" if column == "Interval (years)" else "string"
-                for column in default_row
-            })
-            baseline = (config, frame)
-            st.session_state[baseline_key] = baseline
-        return baseline[1]
 
     plan_left, plan_right = st.columns(2)
     with plan_left:
@@ -1195,167 +1160,11 @@ def render_planner(*, show_header=True):
                 key="include_named_prior_schedules",
             )
             if custom_prior_enabled:
-                st.caption(
-                    "Add one row per schedule assignment. Repeat a plan name to assign "
-                    "different schedules to different joints. Choose All cracked joints "
-                    "for one schedule applied to all."
+                saved_prior_rows = render_prior_plans(
+                    handoff["dataset_id"][:12], cracked_joint_models, int(horizon), prior_default_interval
                 )
-                prior_rows_key = "custom_prior_plan_rows_v2_" + handoff["dataset_id"][:12]
-                prior_editor_key = "custom_prior_plan_editor_v3_" + handoff["dataset_id"][:12]
-                default_prior_row = {
-                    "Plan name": "Prior plan 1",
-                    "Cracked joint": "All cracked joints",
-                    "Schedule type": "Fixed interval",
-                    "Interval (years)": prior_default_interval,
-                    "Manual excavation years": "",
-                }
-                prior_editor = st.data_editor(
-                    schedule_editor_input(
-                        prior_rows_key, prior_editor_key, default_prior_row, cracked_joint_names
-                    ),
-                    key=prior_editor_key,
-                    hide_index=True,
-                    num_rows="dynamic",
-                    width="stretch",
-                    column_config={
-                        "Plan name": st.column_config.TextColumn(
-                            "Plan name", required=False
-                        ),
-                        "Cracked joint": st.column_config.SelectboxColumn(
-                            "Cracked joint",
-                            options=["All cracked joints"] + cracked_joint_names,
-                            help="Select one joint or all initially cracked joints.",
-                            required=False,
-                        ),
-                        "Schedule type": st.column_config.SelectboxColumn(
-                            "Schedule type",
-                            options=["Fixed interval", "Manual years"],
-                            help="Choose whether this row uses a repeat interval or listed years.",
-                            required=False,
-                        ),
-                        "Interval (years)": st.column_config.NumberColumn(
-                            "Interval (years)",
-                            min_value=1,
-                            max_value=int(horizon),
-                            step=1,
-                            format="%d",
-                            required=False,
-                            help="Used when Schedule type is Fixed interval.",
-                        ),
-                        "Manual excavation years": st.column_config.TextColumn(
-                            "Manual excavation years",
-                            help="Comma-separated years, such as 3, 5, 20. Used in Manual years mode.",
-                            required=False,
-                        ),
-                    },
-                )
-                prior_rows = prior_editor.to_dict(orient="records")
-                st.session_state[prior_rows_key] = prior_rows
-
                 try:
-                    if not cracked_joint_names and any(
-                        _text_cell(row.get("Plan name"))
-                        or _text_cell(row.get("Manual excavation years"))
-                        or (
-                            row.get("Interval (years)") is not None
-                            and not pd.isna(row.get("Interval (years)"))
-                        )
-                        for row in prior_rows
-                    ):
-                        raise ValueError(
-                            "Prior schedules need at least one initially cracked joint."
-                        )
-                    prior_groups = {}
-                    prior_names_casefold = {}
-                    for row in prior_rows:
-                        name = _text_cell(row.get("Plan name"))
-                        target = _text_cell(row.get("Cracked joint"))
-                        schedule_type = _text_cell(row.get("Schedule type")) or "Fixed interval"
-                        manual_text = _text_cell(row.get("Manual excavation years"))
-                        if not name and not manual_text and (
-                            row.get("Interval (years)") is None
-                            or pd.isna(row.get("Interval (years)"))
-                        ):
-                            continue
-                        if not name:
-                            raise ValueError("Every prior schedule row needs a plan name.")
-                        name_key = name.casefold()
-                        if name_key in prior_names_casefold and prior_names_casefold[name_key] != name:
-                            raise ValueError("Use the same capitalization for each repeated prior plan name.")
-                        prior_names_casefold[name_key] = name
-                        if target not in (["All cracked joints"] + cracked_joint_names):
-                            raise ValueError(f"{name}: choose a valid cracked joint.")
-                        if schedule_type == "Fixed interval":
-                            interval_value = row.get("Interval (years)")
-                            if interval_value is None or pd.isna(interval_value):
-                                raise ValueError(f"{name} / {target}: enter a fixed interval.")
-                            interval_value = float(interval_value)
-                            if not np.isfinite(interval_value) or not interval_value.is_integer():
-                                raise ValueError(f"{name} / {target}: interval must be a whole number of years.")
-                            interval_value = int(interval_value)
-                            if interval_value < 1 or interval_value > int(horizon):
-                                raise ValueError(f"{name} / {target}: interval must be from 1 to {int(horizon)} years.")
-                            years = list(range(interval_value, int(horizon) + 1, interval_value))
-                            schedule_description = f"every {interval_value} years"
-                        elif schedule_type == "Manual years":
-                            years = parse_manual_years(
-                                manual_text, f"{name} / {target} excavation schedule", int(horizon)
-                            )
-                            schedule_description = ", ".join(map(str, years))
-                        else:
-                            raise ValueError(f"{name}: choose Fixed interval or Manual years.")
-                        plan_rows = prior_groups.setdefault(name, [])
-                        if any(existing["target"] == target for existing in plan_rows):
-                            raise ValueError(f"{name}: {target} appears more than once.")
-                        plan_rows.append({
-                            "target": target,
-                            "years": years,
-                            "description": schedule_description,
-                        })
-
-                    for name, rows in prior_groups.items():
-                        targets = [row["target"] for row in rows]
-                        if "All cracked joints" in targets and len(rows) > 1:
-                            raise ValueError(
-                                f"{name}: use either All cracked joints or individual joints, not both."
-                            )
-                        joint_schedules = {}
-                        descriptions = []
-                        if targets == ["All cracked joints"]:
-                            years = rows[0]["years"]
-                            joint_schedules = {
-                                joint_name: years for joint_name in cracked_joint_names
-                            }
-                            descriptions.append(
-                                "All cracked joints: " + rows[0]["description"]
-                            )
-                        else:
-                            for row in rows:
-                                joint_schedules[row["target"]] = row["years"]
-                                descriptions.append(
-                                    row["target"] + ": " + row["description"]
-                                )
-                        gaps = []
-                        weights = []
-                        for joint in cracked_joint_models:
-                            years = joint_schedules.get(joint["name"], [])
-                            gaps.append(float(horizon) / (len(years) + 1))
-                            weights.append(max(int(joint.get("count", 1)), 1))
-                        mean_gap = float(np.average(gaps, weights=weights))
-                        all_years = sorted({
-                            year for years in joint_schedules.values() for year in years
-                        })
-                        plan_id = hashlib.sha256(
-                            repr(("prior", name, joint_schedules)).encode()
-                        ).hexdigest()[:12]
-                        custom_plan_config["prior"].append({
-                            "candidate_id": "prior-user-" + plan_id,
-                            "plan_name": name,
-                            "years": all_years,
-                            "joint_schedules": joint_schedules,
-                            "schedule_description": "; ".join(descriptions),
-                            "chart_interval": mean_gap,
-                        })
+                    custom_plan_config["prior"] = prior_candidates(saved_prior_rows, cracked_joint_models, int(horizon))
                 except (TypeError, ValueError) as exc:
                     custom_schedule_error = str(exc)
                     st.error(custom_schedule_error)
@@ -1393,6 +1202,9 @@ def render_planner(*, show_header=True):
                 )
                 ili_rows_key = "custom_ili_plan_rows_v2_" + handoff["dataset_id"][:12]
                 ili_editor_key = "custom_ili_plan_editor_v3_" + handoff["dataset_id"][:12]
+                revision = st.session_state.get(ili_rows_key + "_revision", 0)
+                if revision:
+                    ili_editor_key += f"_{revision}"
                 default_ili_row = {
                     "Plan name": "Pre-posterior plan 1",
                     "Schedule type": "Fixed interval",
@@ -1401,7 +1213,7 @@ def render_planner(*, show_header=True):
                 }
                 ili_editor = st.data_editor(
                     schedule_editor_input(
-                        ili_rows_key, ili_editor_key, default_ili_row
+                        ili_rows_key, ili_editor_key, default_ili_row, horizon
                     ),
                     key=ili_editor_key,
                     hide_index=True,
@@ -1435,6 +1247,7 @@ def render_planner(*, show_header=True):
                 )
                 ili_rows = ili_editor.to_dict(orient="records")
                 st.session_state[ili_rows_key] = ili_rows
+                duplicate_ili_row(ili_rows, ili_rows_key)
 
                 try:
                     ili_groups = {}
