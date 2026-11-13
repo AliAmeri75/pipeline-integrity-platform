@@ -1149,6 +1149,23 @@ def render_planner(*, show_header=True):
     def _text_cell(value):
         return "" if value is None or pd.isna(value) else str(value).strip()
 
+    def schedule_editor_input(rows_key, editor_key, default_row, joint_options=()):
+        # A dynamic data editor applies all cell and row edits to its original input.
+        # Only start a new baseline when reopening the editor or changing its schema.
+        baseline_key = rows_key + "_baseline"
+        config = (int(horizon), tuple(joint_options))
+        baseline = st.session_state.get(baseline_key)
+        if editor_key not in st.session_state or baseline is None or baseline[0] != config:
+            rows = st.session_state.get(rows_key, [default_row])
+            frame = pd.DataFrame.from_records(rows, columns=list(default_row))
+            frame = frame.astype({
+                column: "Int64" if column == "Interval (years)" else "string"
+                for column in default_row
+            })
+            baseline = (config, frame)
+            st.session_state[baseline_key] = baseline
+        return baseline[1]
+
     plan_left, plan_right = st.columns(2)
     with plan_left:
         with st.expander("Prior plan", expanded=False):
@@ -1184,22 +1201,18 @@ def render_planner(*, show_header=True):
                     "for one schedule applied to all."
                 )
                 prior_rows_key = "custom_prior_plan_rows_v2_" + handoff["dataset_id"][:12]
-                prior_editor_key = "custom_prior_plan_editor_v2_" + handoff["dataset_id"][:12]
-                default_prior_rows = [{
+                prior_editor_key = "custom_prior_plan_editor_v3_" + handoff["dataset_id"][:12]
+                default_prior_row = {
                     "Plan name": "Prior plan 1",
                     "Cracked joint": "All cracked joints",
                     "Schedule type": "Fixed interval",
                     "Interval (years)": prior_default_interval,
                     "Manual excavation years": "",
-                }]
-                saved_prior_rows = st.session_state.get(prior_rows_key)
-                initial_prior_rows = (
-                    saved_prior_rows
-                    if isinstance(saved_prior_rows, list) and saved_prior_rows
-                    else default_prior_rows
-                )
+                }
                 prior_editor = st.data_editor(
-                    pd.DataFrame(initial_prior_rows),
+                    schedule_editor_input(
+                        prior_rows_key, prior_editor_key, default_prior_row, cracked_joint_names
+                    ),
                     key=prior_editor_key,
                     hide_index=True,
                     num_rows="dynamic",
@@ -1379,21 +1392,17 @@ def render_planner(*, show_header=True):
                     "Add one row per plan. Select a fixed interval or enter exact inspection years."
                 )
                 ili_rows_key = "custom_ili_plan_rows_v2_" + handoff["dataset_id"][:12]
-                ili_editor_key = "custom_ili_plan_editor_v2_" + handoff["dataset_id"][:12]
-                default_ili_rows = [{
+                ili_editor_key = "custom_ili_plan_editor_v3_" + handoff["dataset_id"][:12]
+                default_ili_row = {
                     "Plan name": "Pre-posterior plan 1",
                     "Schedule type": "Fixed interval",
                     "Interval (years)": ili_default_interval,
                     "Manual inspection years": "",
-                }]
-                saved_ili_rows = st.session_state.get(ili_rows_key)
-                initial_ili_rows = (
-                    saved_ili_rows
-                    if isinstance(saved_ili_rows, list) and saved_ili_rows
-                    else default_ili_rows
-                )
+                }
                 ili_editor = st.data_editor(
-                    pd.DataFrame(initial_ili_rows),
+                    schedule_editor_input(
+                        ili_rows_key, ili_editor_key, default_ili_row
+                    ),
                     key=ili_editor_key,
                     hide_index=True,
                     num_rows="dynamic",
