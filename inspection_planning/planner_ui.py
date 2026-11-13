@@ -11,6 +11,7 @@ def render_planner(*, show_header=True):
     import hashlib
     import html
     import io
+    from threading import Event
     import numpy as np
     import pandas as pd
     import plotly.graph_objects as go
@@ -1600,7 +1601,18 @@ def render_planner(*, show_header=True):
         or not safety_criteria_valid
         or custom_schedule_error is not None
     )
+    def request_analysis_stop(active_job):
+        # Clicking this full-page widget also asks Streamlit to rerun the script.
+        if not active_job.get("complete"):
+            active_job["stop_requested"] = True
+
     job = st.session_state.get("integrated_planning_job")
+    # Fast reruns can start a new script while the previous one finishes a batch.
+    # Wait for its checkpoint and exit before reading results or offering Resume.
+    finishing = job.get("_run_finished") if job else None
+    if finishing is not None and not finishing.is_set():
+        with st.spinner("Finishing the current batch and saving progress…"):
+            finishing.wait()
     resumable = bool(
         job and job.get("run_signature") == run_signature and not job.get("complete")
     )
@@ -1619,10 +1631,11 @@ def render_planner(*, show_header=True):
             checkpoint.get("processed", 0)
             for checkpoint in job.get("checkpoints", {}).values()
         )
+        status = "Analysis stopped." if job.get("stop_requested") else "Unfinished run."
         st.info(
-            f"Unfinished run: {finished_prior}/{prior_candidate_total} prior plans and "
+            f"{status} {finished_prior}/{prior_candidate_total} prior plans and "
             f"{finished_ili}/{ili_candidate_total} ILI plans completed. "
-            f"{attempted:,} candidate-samples processed. Resume to continue from the last completed batch."
+            f"{attempted:,} samples saved for unfinished plans. Resume to continue from the last saved batch."
         )
         partial = [
             {
@@ -1659,7 +1672,17 @@ def render_planner(*, show_header=True):
                 complete=False,
             )
             st.session_state["integrated_planning_job"] = job
+        stop_control = st.empty()
+        finished = Event()
+        job["_run_finished"] = finished
+        job["stop_requested"] = False
         try:
+            st.session_state.pop("integrated_planning_comparison", None)
+            stop_control.button(
+                "Stop analysis", key="stop_integrated_planning_comparison",
+                on_click=request_analysis_stop, args=(job,),
+                help="Finish the current batch and save progress for Resume.",
+            )
             with st.spinner("Running prior excavation candidates…"):
                 prior_results, prior_log = run_interval_study(
                     joints, prior_intervals, model, EXCAVATION_DECISION_MODE, job
@@ -1699,7 +1722,11 @@ def render_planner(*, show_header=True):
                 "in this session. Select Resume to continue; changing inputs starts a new study."
             )
             st.exception(exc)
-
+        finally:
+            # Also runs when Streamlit interrupts this script at a progress update.
+            job.pop("_run_finished", None)
+            finished.set()
+        stop_control.empty()
 
     study = st.session_state.get("integrated_planning_comparison")
     if study and study.get("run_signature") != run_signature:
