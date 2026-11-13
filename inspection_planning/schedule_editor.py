@@ -75,17 +75,27 @@ def edit_schedule_rows(rows_key, widget_key, rows, horizon, default_interval, *,
                 INTERVAL: None if pd.isna(value) else float(value), manual: cell(row.get(manual))}
 
     initial = [normalized(row) for row in rows]
+
+    def save_rows(updated):
+        edited = [normalized(row) for row in updated]
+        if prior and [r[JOINT] for r in edited] != [r[JOINT] for r in initial]:
+            raise ValueError("Excavation rows must match the cracked joints in this plan.")
+        st.session_state[rows_key] = edited
+        return edited
+
+    def commit_change():
+        # Run before the page rerenders, including when the next click hides the table.
+        updated = st.session_state[widget_key].get("rows")
+        if updated is not None:
+            save_rows(updated)
+
     result = _schedule_table(
         key=widget_key,
         data={"instance": widget_key, "rows": initial, "prior": prior,
               "horizon": int(horizon), "defaultInterval": int(default_interval)},
-        default={"rows": initial}, on_rows_change=lambda: None,
+        default={"rows": initial}, on_rows_change=commit_change,
     )
-    edited = [normalized(row) for row in result.rows]
-    if prior and [r[JOINT] for r in edited] != [r[JOINT] for r in initial]:
-        raise ValueError("Excavation rows must match the cracked joints in this plan.")
-    st.session_state[rows_key] = edited
-    return edited
+    return save_rows(result.rows)
 
 
 def prior_candidates(rows, joints, horizon):
