@@ -946,10 +946,26 @@ def _restore_checkpoint(checkpoint):
     return _copy_array_lists(*arrays), _copy_nested_lists(*nested)
 
 
+def _validated_schedule(values, T, dt, label):
+    """Validate user-specified intervention years on the simulation time grid."""
+    schedule = np.asarray(values, dtype=float)
+    if schedule.ndim != 1 or not np.isfinite(schedule).all():
+        raise ValueError(f"{label} must be a one-dimensional list of finite years.")
+    if np.any(schedule <= 0) or np.any(schedule > T):
+        raise ValueError(f"{label} must fall between year 1 and the analysis horizon ({T:g}).")
+    if np.any(np.diff(schedule) <= 0):
+        raise ValueError(f"{label} must be strictly increasing with no duplicates.")
+    if not np.allclose(schedule / dt, np.round(schedule / dt), atol=1e-9, rtol=0):
+        raise ValueError(f"{label} must align with the simulation time step ({dt:g} years).")
+    return schedule
+
+
 def _schedule_from_parameters(approach, T, dt, sim_params):
     if approach == "equidistant":
         if "inspection_times" in sim_params:
-            schedule = np.asarray(sim_params["inspection_times"], dtype=float)
+            schedule = _validated_schedule(
+                sim_params["inspection_times"], T, dt, "inspection_times"
+            )
         else:
             interval = sim_params["inspection_interval"]
             if interval <= 0:
@@ -1028,6 +1044,30 @@ def run_simulation(
     sim_params = dict(sim_params)
     sim_params.update({"T": T, "dt": dt})
     insp_times = _schedule_from_parameters(approach, T, dt, sim_params)
+    raw_joint_schedules = sim_params.get("joint_inspection_times")
+    joint_inspection_schedules = None
+    if raw_joint_schedules is not None:
+        if decision_mode != EXCAVATION_DECISION_MODE:
+            raise ValueError("Joint-specific schedules are only available for prior excavation.")
+        if not isinstance(raw_joint_schedules, dict):
+            raise ValueError("joint_inspection_times must map pipe-joint names to year lists.")
+        unknown_names = set(raw_joint_schedules) - set(joint_names)
+        if unknown_names:
+            raise ValueError("Joint schedule contains unknown joint names: "
+                             + ", ".join(sorted(map(str, unknown_names))))
+        joint_inspection_schedules = {
+            name: _validated_schedule(
+                raw_joint_schedules.get(name, []), T, dt, f"Schedule for {name}"
+            )
+            for name in joint_names
+        }
+        scheduled_years = [
+            years for years in joint_inspection_schedules.values() if len(years)
+        ]
+        insp_times = (
+            np.unique(np.concatenate(scheduled_years))
+            if scheduled_years else np.array([], dtype=float)
+        )
     times = np.arange(0, T + dt, dt)
     nt = len(times)
 
@@ -1165,11 +1205,15 @@ def run_simulation(
             cii[k] = ili_inspection_event_cost(costs) / (1 + costs["rate"]) ** t
 
         for j, (cracks, count) in enumerate(zip(num_cracks_list, group_counts)):
+            joint_insp_times = (
+                joint_inspection_schedules.get(joint_names[j], np.array([], dtype=float))
+                if joint_inspection_schedules is not None else insp_times
+            )
             result = Joint_planning_step(
                 t, k, L_states[j], D_states[j], g_states[j], rep1[j], rep2[j],
                 ptr[j], nxt[j], births_list[j], active[j], pipe_props_list[j],
                 costs, sim_params, S_err, q_pod, qsf_states[j], fsf_states[j],
-                mv_states[j], insp_times, failed_locations[j], birth_rates[j],
+                mv_states[j], joint_insp_times, failed_locations[j], birth_rates[j],
                 action_arr[j], decision_mode,
                 leak_history=has_leaked[j], burst_history=has_burst[j],
             )

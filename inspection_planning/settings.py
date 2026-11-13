@@ -34,3 +34,6 @@ class PlanningSettings:
 
     def checkbox(self, label, *args, **kwargs):
         return self._widget('checkbox', label, *args, **kwargs)
+
+    def text_input(self, label, *args, **kwargs):
+        return self._widget('text_input', label, *args, **kwargs)

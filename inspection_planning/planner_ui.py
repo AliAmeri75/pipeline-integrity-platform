@@ -201,6 +201,26 @@ def render_planner(*, show_header=True):
         }
 
 
+    def parse_manual_years(value, label, horizon_years):
+        """Parse comma-separated integer intervention years."""
+        text = str(value or "").strip()
+        if not text:
+            raise ValueError(f"{label}: enter one or more years.")
+        parts = [part.strip() for part in text.replace(";", ",").split(",") if part.strip()]
+        try:
+            values = [float(part) for part in parts]
+        except ValueError as exc:
+            raise ValueError(f"{label}: use whole years separated by commas, for example 2, 10, 15.") from exc
+        if not values or any(not np.isfinite(year) or not year.is_integer() for year in values):
+            raise ValueError(f"{label}: each entry must be a whole year.")
+        years = [int(year) for year in values]
+        if any(year < 1 or year > horizon_years for year in years):
+            raise ValueError(f"{label}: years must be from 1 to {int(horizon_years)}.")
+        if len(set(years)) != len(years):
+            raise ValueError(f"{label}: remove duplicate years.")
+        return sorted(years)
+
+
     def run_interval_study(joints, intervals, model, decision_mode, job):
         method_label = (
             "prior excavation"
@@ -931,6 +951,194 @@ def render_planner(*, show_header=True):
         joints = []
         total_joints = total_initial_cracks = 0
 
+    custom_plan_enabled = False
+    custom_prior_per_joint = False
+    custom_schedule_config = None
+    custom_schedule_error = None
+
+    with st.expander("User-defined schedules", expanded=False):
+        st.caption(
+            "Evaluate one named plan for each method in addition to the fixed-interval "
+            "comparison. Enter years such as 2, 10, 15. These plans are evaluated as "
+            "given; they are not added to the fixed-interval optimization curves."
+        )
+        custom_plan_enabled = settings.checkbox(
+            "Enable user-defined plan evaluation", value=False
+        )
+        custom_ili_years = []
+        custom_prior_years = []
+        custom_joint_schedule_map = None
+        custom_prior_description = ""
+        custom_ili_description = ""
+        custom_prior_plan_name = "Plan 1_no_ILI"
+        custom_ili_plan_name = "Plan 1_ILI"
+        custom_joint_schedule_records = []
+
+        if custom_plan_enabled:
+            name_cols = st.columns(2)
+            with name_cols[0]:
+                custom_prior_plan_name = settings.text_input(
+                    "Prior plan name", value="Plan 1_no_ILI"
+                )
+                custom_prior_per_joint = settings.checkbox(
+                    "Set a separate excavation schedule for each cracked joint",
+                    value=False,
+                )
+            with name_cols[1]:
+                custom_ili_plan_name = settings.text_input(
+                    "ILI plan name", value="Plan 1_ILI"
+                )
+                default_ili_years = ", ".join(
+                    str(year) for year in range(
+                        int(ili_interval_start), int(horizon) + 1, int(ili_interval_start)
+                    )
+                ) or str(min(int(ili_interval_start), int(horizon)))
+                custom_ili_year_text = settings.text_input(
+                    "ILI inspection years for the whole system (comma-separated)",
+                    value=default_ili_years,
+                    help="The same ILI years apply across the full pipeline.",
+                )
+
+            cracked_joint_models = [joint for joint in joints if joint.get("cracks")]
+            if custom_prior_per_joint:
+                st.caption(
+                    "Enter either manual excavation years or one fixed interval in each row. "
+                    "The table has one row per cracked physical joint. Crack-free groups are "
+                    "not assigned excavations in the prior method."
+                )
+                if not cracked_joint_models:
+                    st.info("No initially cracked joints are present in this saved dataset.")
+                else:
+                    default_prior_interval = min(
+                        max(1, int(prior_interval_start)), int(horizon)
+                    )
+                    default_rows = [
+                        {
+                            "Cracked joint": joint["name"],
+                            "Manual excavation years": "",
+                            "Fixed interval (years)": default_prior_interval,
+                        }
+                        for joint in cracked_joint_models
+                    ]
+                    schedule_field = "prior_joint_schedule_" + handoff["dataset_id"][:12]
+                    saved_planning = st.session_state.setdefault("static_planning_settings", {})
+                    saved_rows = saved_planning.get(schedule_field)
+                    joint_labels = [row["Cracked joint"] for row in default_rows]
+                    if (isinstance(saved_rows, list)
+                            and [str(row.get("Cracked joint", "")) for row in saved_rows] == joint_labels):
+                        editor_rows = saved_rows
+                    else:
+                        editor_rows = default_rows
+                    schedule_editor_key = "static_planning_editor_" + handoff["dataset_id"][:12]
+                    schedule_editor = st.data_editor(
+                        pd.DataFrame(editor_rows),
+                        key=schedule_editor_key,
+                        hide_index=True,
+                        disabled=["Cracked joint"],
+                        num_rows="fixed",
+                        width="stretch",
+                        column_config={
+                            "Cracked joint": st.column_config.TextColumn(
+                                "Cracked joint", help="Each row represents one physical pipe joint."
+                            ),
+                            "Manual excavation years": st.column_config.TextColumn(
+                                "Manual excavation years",
+                                help="Optional comma-separated years, such as 3, 5, 20.",
+                                required=False,
+                            ),
+                            "Fixed interval (years)": st.column_config.NumberColumn(
+                                "Fixed interval (years)",
+                                min_value=1,
+                                max_value=int(horizon),
+                                step=1,
+                                format="%d",
+                                required=False,
+                                help="Enter one interval, for example 5, to excavate at years 5, 10, 15, and so on.",
+                            ),
+                        },
+                    )
+                    custom_joint_schedule_records = schedule_editor.to_dict(orient="records")
+                    saved_planning[schedule_field] = custom_joint_schedule_records
+
+            prior_default_years = ", ".join(
+                str(year) for year in range(
+                    int(prior_interval_start), int(horizon) + 1, int(prior_interval_start)
+                )
+            ) or str(min(int(prior_interval_start), int(horizon)))
+            if not custom_prior_per_joint:
+                custom_prior_year_text = settings.text_input(
+                    "Prior excavation years for all cracked joints (comma-separated)",
+                    value=prior_default_years,
+                    help="This common prior schedule applies to each initially cracked joint.",
+                )
+
+            try:
+                custom_ili_years = parse_manual_years(
+                    custom_ili_year_text, "ILI inspection schedule", int(horizon)
+                )
+                if custom_prior_per_joint:
+                    if not cracked_joint_models:
+                        raise ValueError("Per-joint excavation schedules require at least one cracked joint.")
+                    custom_joint_schedule_map = {}
+                    descriptions = []
+                    for row in custom_joint_schedule_records:
+                        joint_name = str(row.get("Cracked joint", ""))
+                        manual_value = row.get("Manual excavation years", "")
+                        if manual_value is None or pd.isna(manual_value):
+                            manual_value = ""
+                        manual_text = str(manual_value).strip()
+                        fixed_value = row.get("Fixed interval (years)")
+                        if fixed_value is not None and pd.isna(fixed_value):
+                            fixed_value = None
+                        if manual_text and fixed_value is not None:
+                            raise ValueError(
+                                f"{joint_name}: enter manual years or a fixed interval, not both."
+                            )
+                        if manual_text:
+                            years = parse_manual_years(
+                                manual_text, f"{joint_name} schedule", int(horizon)
+                            )
+                            descriptions.append(f"{joint_name}: " + ", ".join(map(str, years)))
+                        elif fixed_value is not None:
+                            fixed_number = float(fixed_value)
+                            if not np.isfinite(fixed_number) or not fixed_number.is_integer():
+                                raise ValueError(f"{joint_name}: fixed interval must be a whole number of years.")
+                            interval_years = int(fixed_number)
+                            if interval_years < 1 or interval_years > int(horizon):
+                                raise ValueError(
+                                    f"{joint_name}: fixed interval must be from 1 to {int(horizon)} years."
+                                )
+                            years = list(range(interval_years, int(horizon) + 1, interval_years))
+                            descriptions.append(f"{joint_name}: every {interval_years} years")
+                        else:
+                            raise ValueError(
+                                f"{joint_name}: enter manual excavation years or a fixed interval."
+                            )
+                        custom_joint_schedule_map[joint_name] = years
+                    custom_prior_years = sorted({
+                        year for years in custom_joint_schedule_map.values() for year in years
+                    })
+                    custom_prior_description = "; ".join(descriptions)
+                else:
+                    custom_prior_years = parse_manual_years(
+                        custom_prior_year_text, "Prior excavation schedule", int(horizon)
+                    )
+                    custom_prior_description = ", ".join(map(str, custom_prior_years))
+                custom_ili_description = ", ".join(map(str, custom_ili_years))
+                custom_schedule_config = {
+                    "prior_name": custom_prior_plan_name.strip() or "Prior plan",
+                    "ili_name": custom_ili_plan_name.strip() or "ILI plan",
+                    "prior_years": custom_prior_years,
+                    "prior_by_joint": custom_joint_schedule_map,
+                    "prior_description": custom_prior_description,
+                    "ili_years": custom_ili_years,
+                    "ili_description": custom_ili_description,
+                }
+            except (TypeError, ValueError) as exc:
+                custom_schedule_error = str(exc)
+                st.error(custom_schedule_error)
+
+
     expected_new_cracks = sum(
         joint["count"] * joint["birth_rate"] * horizon for joint in joints
     )
@@ -1009,6 +1217,13 @@ def render_planner(*, show_header=True):
         },
     }
 
+    custom_plan_signature = None
+    if custom_plan_enabled and custom_schedule_config is not None:
+        custom_plan_signature = hashlib.sha256(
+            repr((handoff["dataset_id"], model, joints, custom_schedule_config,
+                  pipeline_class)).encode()
+        ).hexdigest()
+
     run_signature = hashlib.sha256(repr((handoff["dataset_id"], model, joints,
         prior_intervals, ili_intervals, pipeline_class)).encode()).hexdigest()
     current_safety_signature = (
@@ -1077,6 +1292,146 @@ def render_planner(*, show_header=True):
                 'Select Resume to continue; changing inputs starts a new study.')
             st.exception(exc)
 
+
+    if custom_plan_enabled and custom_schedule_config is not None:
+        st.markdown("#### User-defined plan evaluation")
+        st.caption(
+            "This evaluates the two schedules exactly as entered. The prior plan may "
+            "have different excavation years by joint; ILI remains system-wide."
+        )
+        custom_job = st.session_state.get("integrated_custom_schedule_job")
+        custom_resumable = bool(
+            custom_job
+            and custom_job.get("signature") == custom_plan_signature
+            and not custom_job.get("complete")
+        )
+        if st.button(
+            "Resume user-defined plans" if custom_resumable else "Run user-defined plans",
+            type="secondary",
+            disabled=not joints or not safety_criteria_valid or custom_schedule_error is not None,
+            key="run_integrated_custom_schedule_plans",
+        ):
+            if not custom_job or custom_job.get("signature") != custom_plan_signature:
+                custom_job = {
+                    "signature": custom_plan_signature,
+                    "checkpoints": {},
+                    "results": {},
+                    "complete": False,
+                }
+                st.session_state["integrated_custom_schedule_job"] = custom_job
+            progress = st.progress(0, text="Preparing user-defined plan simulations…")
+            custom_runs = [
+                (
+                    "prior",
+                    custom_schedule_config["prior_name"],
+                    EXCAVATION_DECISION_MODE,
+                    custom_schedule_config["prior_years"],
+                    custom_schedule_config["prior_by_joint"],
+                ),
+                (
+                    "ili",
+                    custom_schedule_config["ili_name"],
+                    ILI_DECISION_MODE,
+                    custom_schedule_config["ili_years"],
+                    None,
+                ),
+            ]
+            try:
+                for run_index, (run_key, plan_name, decision_mode, years, joint_map) in enumerate(custom_runs):
+                    if run_key in custom_job["results"]:
+                        continue
+                    sim = copy.deepcopy(model["sim"])
+                    sim.pop("inspection_interval", None)
+                    sim["inspection_times"] = list(years)
+                    if joint_map is not None:
+                        sim["joint_inspection_times"] = joint_map
+                    else:
+                        sim.pop("joint_inspection_times", None)
+                    checkpoint = custom_job["checkpoints"].setdefault(run_key, {})
+
+                    def report(done, requested, retained, index=run_index, name=plan_name):
+                        progress.progress(
+                            (index + done / requested) / len(custom_runs),
+                            text=f"{name}: {done:,}/{requested:,} samples processed "
+                                 f"({retained:,} retained).",
+                        )
+
+                    raw = run_batched_flexible_simulation(
+                        "equidistant",
+                        model["horizon"],
+                        1,
+                        model["samples"],
+                        joints,
+                        model["costs"],
+                        sim,
+                        [model["depth_error"], model["length_error"]],
+                        model["q_pod"],
+                        default_birth_rate=model["birth_rate"],
+                        property_seed=model["seed"],
+                        crack_length_std=model["initial_length_std"],
+                        crack_depth_std=model["initial_depth_std"],
+                        track_debug=False,
+                        decision_mode=decision_mode,
+                        batch_size=model["batch_size"],
+                        state=checkpoint,
+                        on_progress=report,
+                    )
+                    result = unpack_result(raw, "User-defined schedule", decision_mode, sim)
+                    result["plan_name"] = plan_name
+                    result["schedule_description"] = (
+                        custom_schedule_config["prior_description"]
+                        if run_key == "prior"
+                        else custom_schedule_config["ili_description"]
+                    )
+                    custom_job["results"][run_key] = result
+                custom_job["complete"] = True
+                progress.progress(1.0, text="User-defined plans complete")
+            except Exception as exc:
+                st.error(
+                    "The user-defined plan run did not finish. Completed batches are saved "
+                    "in this session; select Resume to continue."
+                )
+                st.exception(exc)
+
+        custom_job = st.session_state.get("integrated_custom_schedule_job")
+        if custom_job and custom_job.get("signature") == custom_plan_signature:
+            custom_results = custom_job.get("results", {})
+            if "prior" in custom_results and "ili" in custom_results:
+                result_rows = []
+                for run_key in ("prior", "ili"):
+                    result = custom_results[run_key]
+                    result_rows.append({
+                        "Plan": result["plan_name"],
+                        "Intervention years": result["schedule_description"],
+                        "Expected lifecycle cost ($M)": result["total_cpp"],
+                        "Failure cost Cf ($M)": result["failure_cost"],
+                        "Repair cost Cr ($M)": result["repair_cost"],
+                        "ILI cost Ci ($M)": result["inspection_cost"],
+                        "Safety": "Safe" if result["is_safe"] else "Unsafe",
+                        "Peak annual PfL": float(np.max(result["leak_annual_pof"])),
+                        "Peak annual PfB": float(np.max(result["burst_annual_pof"])),
+                    })
+                custom_table = pd.DataFrame(result_rows)
+                st.dataframe(
+                    custom_table.style.format({
+                        "Expected lifecycle cost ($M)": "{:.4f}",
+                        "Failure cost Cf ($M)": "{:.4f}",
+                        "Repair cost Cr ($M)": "{:.4f}",
+                        "ILI cost Ci ($M)": "{:.4f}",
+                        "Peak annual PfL": "{:.3e}",
+                        "Peak annual PfB": "{:.3e}",
+                    }),
+                    hide_index=True,
+                    width="stretch",
+                )
+                st.caption(
+                    "Safe means both peak annual whole-pipeline probabilities stay within "
+                    "the selected limits over the full horizon. These manual plans are "
+                    "separate from the fixed-interval cost-optimal search."
+                )
+            elif not custom_job.get("complete"):
+                completed = ", ".join(sorted(custom_results)) or "none yet"
+                st.info(f"Saved user-defined plan progress. Completed plans: {completed}.")
 
     study = st.session_state.get("integrated_planning_comparison")
     if study and study.get("run_signature") != run_signature:

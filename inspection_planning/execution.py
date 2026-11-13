@@ -16,7 +16,7 @@ import numpy as np
 from inspection_planning import engine
 
 
-EXECUTION_REVISION = 'fixed-interval-pof-v5-technique-residual-depth'
+EXECUTION_REVISION = 'fixed-interval-pof-v6-manual-schedules'
 MEAN_OUTPUTS = (6, 7, 8, 9, 12, 13, 14)
 
 
