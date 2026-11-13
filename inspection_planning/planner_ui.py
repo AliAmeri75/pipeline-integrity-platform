@@ -1,4 +1,4 @@
-"""Fixed-interval planning inside ALIRIM's shared-data session.
+"""Fixed-interval and user-defined planning inside ALIRIM's shared-data session.
 
 Simulation/results UI adapted from AliAmeri75/pipeline-inspection-app,
 inspection_planner.py; shared-data integration replaces its separate input editor.
@@ -24,7 +24,7 @@ def render_planner(*, show_header=True):
         POD_DEPTH_LENGTH_MODEL, POD_DEPTH_ONLY_MODEL,
     )
     from inspection_planning.comparison import (
-        calculate_value_of_information, compare_ili_intervals_to_prior_safe,
+        calculate_value_of_information,
         format_optional_decimal, select_lowest_cost_result, select_optimal_result,
     )
     from project_editor import get_project
@@ -227,22 +227,30 @@ def render_planner(*, show_header=True):
             if decision_mode == EXCAVATION_DECISION_MODE
             else "ILI-informed inspection"
         )
-        result_key = 'prior_results' if decision_mode == EXCAVATION_DECISION_MODE else 'ili_results'
-        log_key = 'prior_log' if decision_mode == EXCAVATION_DECISION_MODE else 'ili_log'
+        result_key = "prior_results" if decision_mode == EXCAVATION_DECISION_MODE else "ili_results"
+        log_key = "prior_log" if decision_mode == EXCAVATION_DECISION_MODE else "ili_log"
         results = job.setdefault(result_key, [])
         progress = st.progress(0, text=f"Preparing {method_label} simulations…")
         log = io.StringIO()
-        log.write(job.get(log_key, ''))
+        log.write(job.get(log_key, ""))
+        intervals = list(intervals)
         for index, interval in enumerate(intervals):
-            if any(result['interval'] == interval for result in results):
+            candidate_id = f"{decision_mode}-fixed-{interval}"
+            if any(result.get("candidate_id") == candidate_id for result in results):
                 continue
             sim = copy.deepcopy(model["sim"])
             sim["inspection_interval"] = interval
-            checkpoint = job.setdefault('checkpoints', {}).setdefault(f'{decision_mode}:{interval}', {})
+            checkpoint = job.setdefault("checkpoints", {}).setdefault(
+                f"{decision_mode}:fixed:{interval}", {}
+            )
+
             def report(done, requested, retained):
-                progress.progress((index + done / requested) / len(intervals),
-                    text=f'{method_label.capitalize()}: {interval}-year interval, '
-                         f'{done:,}/{requested:,} samples processed ({retained:,} retained).')
+                progress.progress(
+                    (index + done / requested) / max(len(intervals), 1),
+                    text=f"{method_label.capitalize()}: {interval}-year interval, "
+                         f"{done:,}/{requested:,} samples processed ({retained:,} retained).",
+                )
+
             with contextlib.redirect_stdout(log):
                 raw = run_batched_flexible_simulation(
                     "equidistant",
@@ -260,11 +268,92 @@ def render_planner(*, show_header=True):
                     crack_depth_std=model["initial_depth_std"],
                     track_debug=False,
                     decision_mode=decision_mode,
-                    batch_size=model['batch_size'], state=checkpoint, on_progress=report,
+                    batch_size=model["batch_size"],
+                    state=checkpoint,
+                    on_progress=report,
                 )
-            results.append(unpack_result(raw, interval, decision_mode, sim))
+            result = unpack_result(raw, interval, decision_mode, sim)
+            result.update(
+                candidate_id=candidate_id,
+                plan_name=f"Fixed interval — {interval} years",
+                schedule_description=f"Every {interval} years",
+                chart_interval=float(interval),
+                is_user_defined=False,
+            )
+            results.append(result)
+            checkpoint.clear()
             job[log_key] = log.getvalue()
-        progress.progress(1.0, text=f"{method_label.capitalize()} optimization complete")
+        progress.progress(1.0, text=f"{method_label.capitalize()} candidates complete")
+        return results, log.getvalue()
+
+
+    def run_user_defined_studies(joints, plans, model, decision_mode, job):
+        """Run each named schedule sequentially through the same batched engine."""
+        result_key = "prior_results" if decision_mode == EXCAVATION_DECISION_MODE else "ili_results"
+        log_key = "prior_log" if decision_mode == EXCAVATION_DECISION_MODE else "ili_log"
+        method_label = "prior excavation" if decision_mode == EXCAVATION_DECISION_MODE else "ILI-informed"
+        results = job.setdefault(result_key, [])
+        plans = list(plans)
+        if not plans:
+            return results, job.get(log_key, "")
+        progress = st.progress(0, text=f"Preparing user-defined {method_label} plans…")
+        log = io.StringIO()
+        log.write(job.get(log_key, ""))
+        for index, plan in enumerate(plans):
+            candidate_id = plan["candidate_id"]
+            if any(result.get("candidate_id") == candidate_id for result in results):
+                continue
+            sim = copy.deepcopy(model["sim"])
+            sim.pop("inspection_interval", None)
+            sim["inspection_times"] = list(plan["years"])
+            if plan.get("joint_schedules") is not None:
+                sim["joint_inspection_times"] = plan["joint_schedules"]
+            else:
+                sim.pop("joint_inspection_times", None)
+            checkpoint = job.setdefault("checkpoints", {}).setdefault(
+                f"{decision_mode}:user:{candidate_id}", {}
+            )
+
+            def report(done, requested, retained):
+                progress.progress(
+                    (index + done / requested) / max(len(plans), 1),
+                    text=f"{plan['plan_name']}: {done:,}/{requested:,} samples "
+                         f"processed ({retained:,} retained).",
+                )
+
+            with contextlib.redirect_stdout(log):
+                raw = run_batched_flexible_simulation(
+                    "equidistant",
+                    model["horizon"],
+                    1,
+                    model["samples"],
+                    joints,
+                    model["costs"],
+                    sim,
+                    [model["depth_error"], model["length_error"]],
+                    model["q_pod"],
+                    default_birth_rate=model["birth_rate"],
+                    property_seed=model["seed"],
+                    crack_length_std=model["initial_length_std"],
+                    crack_depth_std=model["initial_depth_std"],
+                    track_debug=False,
+                    decision_mode=decision_mode,
+                    batch_size=model["batch_size"],
+                    state=checkpoint,
+                    on_progress=report,
+                )
+            result = unpack_result(raw, plan["chart_interval"], decision_mode, sim)
+            result.update(
+                candidate_id=candidate_id,
+                plan_name=plan["plan_name"],
+                schedule_description=plan["schedule_description"],
+                chart_interval=float(plan["chart_interval"]),
+                is_user_defined=True,
+            )
+            results.append(result)
+            checkpoint.clear()
+            job[log_key] = log.getvalue()
+        progress.progress(1.0, text=f"User-defined {method_label} plans complete")
         return results, log.getvalue()
 
 
@@ -310,29 +399,39 @@ def render_planner(*, show_header=True):
         return "Safe" if result["is_safe"] else "Unsafe"
 
 
+    def _plan_label(result):
+        if result.get("is_user_defined"):
+            return f"{result.get('plan_name', 'User-defined plan')} — {result.get('schedule_description', '')}"
+        return f"Fixed interval — {result['interval']:g} years"
+
+
+    def _chart_interval(result):
+        return float(result.get("chart_interval", result["interval"]))
+
+
     def recommendation_matrix(prior_cost_optimal, prior_safe, ili_cost_optimal, ili_safe):
-        """Build a compact result matrix for cost and safety decisions."""
+        """Compare the lowest-cost and lowest-cost safe plans for both methods."""
 
         def row(method, cost_optimal, safe_result):
             safety = _safety_label(cost_optimal)
             badge_class = "badge-safe" if cost_optimal["is_safe"] else "badge-unsafe"
-            safe_interval = (
-                f"{safe_result['interval']} years"
+            safe_plan = (
+                html.escape(_plan_label(safe_result))
                 if safe_result is not None
                 else '<span class="not-found">Not found</span>'
             )
             safe_cost = (
-                f"${safe_result['total_cpp']:.4f}M"
+                "$" + f"{safe_result['total_cpp']:.4f}M"
                 if safe_result is not None
                 else "—"
             )
             return (
                 "<tr>"
                 f"<td>{method}</td>"
-                f"<td><b>{cost_optimal['interval']} years</b></td>"
-                f"<td>${cost_optimal['total_cpp']:.4f}M</td>"
+                f"<td><b>{html.escape(_plan_label(cost_optimal))}</b></td>"
+                "<td>$" + f"{cost_optimal['total_cpp']:.4f}M</td>"
                 f'<td><span class="{badge_class}">{safety}</span></td>'
-                f"<td>{safe_interval}</td>"
+                f"<td>{safe_plan}</td>"
                 f"<td>{safe_cost}</td>"
                 "</tr>"
             )
@@ -342,10 +441,10 @@ def render_planner(*, show_header=True):
         return (
             '<div class="result-matrix"><table><thead><tr>'
             "<th>Planning method</th>"
-            "<th>Cost-optimal interval</th>"
+            "<th>Cost-optimal plan</th>"
             "<th>Lowest cost</th>"
             "<th>Safety at cost optimum</th>"
-            "<th>Minimum-cost safe interval</th>"
+            "<th>Minimum-cost safe plan</th>"
             "<th>Safe cost</th>"
             "</tr></thead><tbody>"
             f"{prior_row}{ili_row}"
@@ -362,6 +461,9 @@ def render_planner(*, show_header=True):
                     result["repair_cost"],
                     result["inspection_cost"],
                     _safety_label(result),
+                    _plan_label(result),
+                    result.get("schedule_description", f"Every {result['interval']} years"),
+                    result.get("candidate_id", ""),
                 ]
                 for result in results
             ],
@@ -371,8 +473,9 @@ def render_planner(*, show_header=True):
 
     def _cost_hover_template(total_label):
         return (
-            "<b>Interval: %{x} years</b><br>"
-            f"{total_label}: $%{{customdata[0]:.6f}}M<br>"
+            "<b>%{customdata[5]}</b><br>"
+            "Schedule: %{customdata[6]}<br>"
+            + total_label + ": $%{customdata[0]:.6f}M<br>"
             "Cf (failure): $%{customdata[1]:.6f}M<br>"
             "Cr (repair): $%{customdata[2]:.6f}M<br>"
             "Ci (inspection): $%{customdata[3]:.6f}M<br>"
@@ -392,21 +495,52 @@ def render_planner(*, show_header=True):
             ("Repair cost, Cr", "repair_cost", COLORS["teal"]),
             ("Inspection cost, Ci", "inspection_cost", COLORS["amber"]),
         ]
-        customdata = _cost_customdata(results)
-        marker_symbols = ["circle" if result["is_safe"] else "x" for result in results]
+        fixed_results = [result for result in results if not result.get("is_user_defined")]
+        custom_results = [result for result in results if result.get("is_user_defined")]
+        best_custom = min(
+            [result for result in custom_results if result["is_safe"]],
+            key=lambda result: result["total_cpp"],
+            default=min(custom_results, key=lambda result: result["total_cpp"]) if custom_results else None,
+        )
+        best_custom_id = best_custom.get("candidate_id") if best_custom else None
         for label, key, color in styles:
-            figure.add_trace(
-                go.Scatter(
-                    x=[result["interval"] for result in results],
-                    y=[result[key] for result in results],
-                    name=label,
-                    mode="lines+markers",
-                    line={"color": color, "width": 2.6},
-                    marker={"size": 8, "symbol": marker_symbols},
-                    customdata=customdata,
-                    hovertemplate=_cost_hover_template(total_label),
+            if fixed_results:
+                figure.add_trace(
+                    go.Scatter(
+                        x=[_chart_interval(result) for result in fixed_results],
+                        y=[result[key] for result in fixed_results],
+                        name=label,
+                        mode="lines+markers",
+                        line={"color": color, "width": 2.6},
+                        marker={
+                            "size": 8,
+                            "symbol": ["circle" if result["is_safe"] else "x" for result in fixed_results],
+                        },
+                        customdata=_cost_customdata(fixed_results),
+                        hovertemplate=_cost_hover_template(total_label),
+                    )
                 )
-            )
+            if custom_results:
+                figure.add_trace(
+                    go.Scatter(
+                        x=[_chart_interval(result) for result in custom_results],
+                        y=[result[key] for result in custom_results],
+                        name=f"{label} — user-defined plans",
+                        mode="markers",
+                        marker={
+                            "size": 12,
+                            "symbol": [
+                                "star" if label == total_label and result.get("candidate_id") == best_custom_id
+                                else "diamond" if result["is_safe"] else "x"
+                                for result in custom_results
+                            ],
+                            "color": color,
+                            "line": {"color": "white", "width": 1},
+                        },
+                        customdata=_cost_customdata(custom_results),
+                        hovertemplate=_cost_hover_template(total_label),
+                    )
+                )
         figure.update_layout(hovermode="closest", clickmode="event+select")
         return figure
 
@@ -436,25 +570,39 @@ def render_planner(*, show_header=True):
             (
                 result
                 for result in results
-                if np.isclose(float(result["interval"]), selected_interval)
+                if np.isclose(_chart_interval(result), selected_interval)
             ),
             None,
         )
 
 
+    def _result_from_point(results, point):
+        custom = point.get("customdata") if isinstance(point, dict) else getattr(point, "customdata", None)
+        if custom is not None and len(custom) >= 8:
+            candidate_id = str(custom[7])
+            match = next((result for result in results
+                          if str(result.get("candidate_id", "")) == candidate_id), None)
+            if match is not None:
+                return match
+        x_value = point.get("x") if isinstance(point, dict) else getattr(point, "x", None)
+        return _result_at_interval(results, x_value)
+
+
     def show_selected_cost(result, total_label):
         if result is None:
             return
-        st.markdown(f"**Selected interval: {result['interval']} years**")
-        columns = st.columns(4)
-        columns[0].metric(total_label, f"${result['total_cpp']:.6f}M")
-        columns[1].metric("Cf — failure cost", f"${result['failure_cost']:.6f}M")
-        columns[2].metric("Cr — repair cost", f"${result['repair_cost']:.6f}M")
-        columns[3].metric("Safety", _safety_label(result))
+        st.markdown(f"**Selected plan: {_plan_label(result)}**")
+        st.caption("Schedule: " + str(result.get("schedule_description", "Fixed interval")))
+        columns = st.columns(5)
+        columns[0].metric(total_label, "$" + f"{result['total_cpp']:.6f}M")
+        columns[1].metric("Cf — failure cost", "$" + f"{result['failure_cost']:.6f}M")
+        columns[2].metric("Cr — repair cost", "$" + f"{result['repair_cost']:.6f}M")
+        columns[3].metric("Ci — inspection cost", "$" + f"{result['inspection_cost']:.6f}M")
+        columns[4].metric("Safety", _safety_label(result))
         if result["is_safe"]:
-            st.success("Safe — this interval satisfies both probability-of-failure criteria.")
+            st.success("Safe — this plan satisfies both probability-of-failure criteria.")
         else:
-            st.error("Unsafe — this interval exceeds at least one probability-of-failure criterion.")
+            st.error("Unsafe — this plan exceeds at least one probability-of-failure criterion.")
         st.caption(
             f"Limits used: PfL ≤ {result['max_annual_leak_pof']:.1e}; "
             f"PfB ≤ {result['max_annual_burst_pof']:.1e}."
@@ -462,7 +610,11 @@ def render_planner(*, show_header=True):
 
 
     def show_selectable_cost_figure(results, title, interval_label, total_label, key):
-        st.caption("Click any point to inspect its Cf, Cr, and Safe/Unsafe result. ○ Safe   × Unsafe")
+        st.caption(
+            "Fixed intervals are connected as curves. User-defined schedules are separate points "
+            "at their equivalent mean gap; hover for the exact schedule. Click a point for metrics. "
+            "★ Lowest-cost safe user plan (or lowest-cost user plan if none are safe); ○ Safe   × Unsafe"
+        )
         event = show_figure(
             cost_figure(results, title, interval_label, total_label),
             key=key,
@@ -470,40 +622,56 @@ def render_planner(*, show_header=True):
         )
         points = _selected_points(event)
         if points:
-            point = points[0]
-            interval = point.get("x") if isinstance(point, dict) else getattr(point, "x", None)
-            show_selected_cost(_result_at_interval(results, interval), total_label)
+            show_selected_cost(_result_from_point(results, points[0]), total_label)
 
 
-    def annual_pof_figure(result, schedule_label):
+    def annual_pof_figure(results, schedule_label, include_method=False):
+        if not isinstance(results, (list, tuple)):
+            results = [results]
+        if not results:
+            return base_figure(
+                f"Annual system POF — {schedule_label}",
+                "Year",
+                "Annual probability of failure (whole pipeline)",
+            )
         figure = base_figure(
-            f"Annual system POF at the cost-optimal {result['interval']}-year "
-            f"{schedule_label.lower()} interval",
+            f"Annual system POF — selected {schedule_label.lower()} plans",
             "Year",
             "Annual probability of failure (whole pipeline)",
         )
-        figure.add_trace(
-            go.Scatter(
-                x=result["times"],
-                y=np.maximum(result["leak_annual_pof"], 1e-12),
-                name="Leakage",
-                mode="lines+markers",
-                line={"color": COLORS["blue"], "width": 2.6},
-                marker={"size": 5},
+        colors = [COLORS["navy"], COLORS["coral"], COLORS["teal"], COLORS["amber"],
+                  COLORS["violet"], COLORS["blue"]]
+        for index, result in enumerate(results):
+            color = colors[index % len(colors)]
+            name = _plan_label(result)
+            if include_method:
+                method_prefix = (
+                    "Prior — " if result["decision_mode"] == EXCAVATION_DECISION_MODE
+                    else "ILI — "
+                )
+                name = method_prefix + name
+            figure.add_trace(
+                go.Scatter(
+                    x=result["times"],
+                    y=np.maximum(result["leak_annual_pof"], 1e-12),
+                    name=f"{name} — leakage",
+                    mode="lines+markers",
+                    line={"color": color, "width": 2.4},
+                    marker={"size": 4},
+                )
             )
-        )
-        figure.add_trace(
-            go.Scatter(
-                x=result["times"],
-                y=np.maximum(result["burst_annual_pof"], 1e-12),
-                name="Burst",
-                mode="lines+markers",
-                line={"color": COLORS["coral"], "width": 2.6},
-                marker={"size": 5},
+            figure.add_trace(
+                go.Scatter(
+                    x=result["times"],
+                    y=np.maximum(result["burst_annual_pof"], 1e-12),
+                    name=f"{name} — burst",
+                    mode="lines+markers",
+                    line={"color": color, "width": 2.4, "dash": "dash"},
+                    marker={"size": 4, "symbol": "square"},
+                )
             )
-        )
-        leak_limit = result["max_annual_leak_pof"]
-        burst_limit = result["max_annual_burst_pof"]
+        leak_limit = results[0]["max_annual_leak_pof"]
+        burst_limit = results[0]["max_annual_burst_pof"]
         if leak_limit > 0:
             figure.add_hline(
                 y=leak_limit,
@@ -518,10 +686,16 @@ def render_planner(*, show_header=True):
                 line_color=COLORS["coral"],
                 annotation_text=f"PfB limit = {burst_limit:.1e}",
             )
-        for inspection in result["inspections"]:
-            figure.add_vline(x=inspection, line_dash="dot", line_color=COLORS["teal"],
-                             opacity=0.45)
+        if len(results) == 1:
+            for inspection in results[0]["inspections"]:
+                figure.add_vline(
+                    x=float(inspection),
+                    line_dash="dot",
+                    line_color=COLORS["teal"],
+                    opacity=0.35,
+                )
         figure.update_yaxes(type="log")
+        figure.update_layout(hovermode="closest")
         return figure
 
 
@@ -530,12 +704,17 @@ def render_planner(*, show_header=True):
         return pd.DataFrame(
             [
                 {
-                    "Interval (years)": result["interval"],
+                    "Plan": _plan_label(result),
+                    "Plan type": "User-defined" if result.get("is_user_defined") else "Fixed interval",
+                    "Schedule": result.get("schedule_description", f"Every {result['interval']} years"),
+                    "Fixed/equivalent mean gap (years)": _chart_interval(result),
                     total_column: result["total_cpp"],
                     "Cf — failure ($M)": result["failure_cost"],
                     "Cr — repair ($M)": result["repair_cost"],
                     "ILI inspection ($M)": result["inspection_cost"],
                     "Expected repairs": result["expected_repairs"],
+                    "Peak annual whole-pipeline PfL": float(np.max(result["leak_annual_pof"])),
+                    "Peak annual whole-pipeline PfB": float(np.max(result["burst_annual_pof"])),
                     "Safety": _safety_label(result),
                 }
                 for result in results
@@ -545,46 +724,68 @@ def render_planner(*, show_header=True):
 
     def comparison_cost_figure(prior_results, ili_results):
         figure = base_figure(
-            "Prior excavation versus ILI-informed scheduling",
-            "Schedule interval (years)",
+            "Prior excavation versus ILI-informed schedules",
+            "Fixed interval / equivalent mean gap (years)",
             f"Expected lifecycle cost (million {handoff['consequence_unit'] or 'currency units'})",
         )
-        figure.add_trace(
-            go.Scatter(
-                x=[result["interval"] for result in prior_results],
-                y=[result["total_cpp"] for result in prior_results],
-                name="Prior: excavation without ILI",
-                mode="lines+markers",
-                line={"color": COLORS["amber"], "width": 3},
-                marker={
-                    "size": 8,
-                    "symbol": ["circle" if result["is_safe"] else "x" for result in prior_results],
-                },
-                customdata=_cost_customdata(prior_results),
-                hovertemplate=_cost_hover_template("Cprior"),
-            )
-        )
-        figure.add_trace(
-            go.Scatter(
-                x=[result["interval"] for result in ili_results],
-                y=[result["total_cpp"] for result in ili_results],
-                name="Pre-posterior: ILI-informed",
-                mode="lines+markers",
-                line={"color": COLORS["teal"], "width": 3},
-                marker={
-                    "size": 8,
-                    "symbol": ["circle" if result["is_safe"] else "x" for result in ili_results],
-                },
-                customdata=_cost_customdata(ili_results),
-                hovertemplate=_cost_hover_template("Cpp"),
-            )
-        )
+        for results, label, color, total_label in [
+            (prior_results, "Prior: excavation without ILI", COLORS["amber"], "Cprior"),
+            (ili_results, "Pre-posterior: ILI-informed", COLORS["teal"], "Cpp"),
+        ]:
+            fixed = [result for result in results if not result.get("is_user_defined")]
+            custom = [result for result in results if result.get("is_user_defined")]
+            if fixed:
+                figure.add_trace(
+                    go.Scatter(
+                        x=[_chart_interval(result) for result in fixed],
+                        y=[result["total_cpp"] for result in fixed],
+                        name=label,
+                        mode="lines+markers",
+                        line={"color": color, "width": 3},
+                        marker={
+                            "size": 8,
+                            "symbol": ["circle" if result["is_safe"] else "x" for result in fixed],
+                        },
+                        customdata=_cost_customdata(fixed),
+                        hovertemplate=_cost_hover_template(total_label),
+                    )
+                )
+            if custom:
+                best_custom = min(
+                    [result for result in custom if result["is_safe"]],
+                    key=lambda result: result["total_cpp"],
+                    default=min(custom, key=lambda result: result["total_cpp"]),
+                )
+                best_custom_id = best_custom.get("candidate_id")
+                figure.add_trace(
+                    go.Scatter(
+                        x=[_chart_interval(result) for result in custom],
+                        y=[result["total_cpp"] for result in custom],
+                        name=f"{label} — user-defined plans",
+                        mode="markers",
+                        marker={
+                            "size": 12,
+                            "symbol": [
+                                "star" if result.get("candidate_id") == best_custom_id
+                                else "diamond" if result["is_safe"] else "x"
+                                for result in custom
+                            ],
+                            "color": color,
+                            "line": {"color": "white", "width": 1},
+                        },
+                        customdata=_cost_customdata(custom),
+                        hovertemplate=_cost_hover_template(total_label),
+                    )
+                )
         figure.update_layout(hovermode="closest", clickmode="event+select")
         return figure
 
 
     def show_comparison_cost_figure(prior_results, ili_results):
-        st.caption("Click a Cprior or Cpp point to inspect Cf, Cr, and Safe/Unsafe. ○ Safe   × Unsafe")
+        st.caption(
+            "User-defined schedules appear as individual points at an equivalent mean gap. "
+            "Hover to see each exact schedule and its Cf, Cr, Ci, and safety status."
+        )
         event = show_figure(
             comparison_cost_figure(prior_results, ili_results),
             key="comparison_cost_selection",
@@ -593,22 +794,41 @@ def render_planner(*, show_header=True):
         points = _selected_points(event)
         if not points:
             return
-        point = points[0]
-        if isinstance(point, dict):
-            interval = point.get("x")
-            curve_number = point.get("curve_number", 0)
-        else:
-            interval = getattr(point, "x", None)
-            curve_number = getattr(point, "curve_number", 0)
-        selected_results = prior_results if int(curve_number) == 0 else ili_results
-        total_label = "Cprior" if int(curve_number) == 0 else "Cpp"
-        show_selected_cost(_result_at_interval(selected_results, interval), total_label)
+        result = _result_from_point(prior_results + ili_results, points[0])
+        if result is not None:
+            total_label = "Cprior" if result["decision_mode"] == EXCAVATION_DECISION_MODE else "Cpp"
+            show_selected_cost(result, total_label)
 
 
     def comparison_table(prior_safe_result, ili_results):
-        return pd.DataFrame(
-            compare_ili_intervals_to_prior_safe(prior_safe_result, ili_results)
-        )
+        rows = []
+        for result in ili_results:
+            prior_cost = prior_safe_result["total_cpp"] if prior_safe_result is not None else np.nan
+            cost_delta = (
+                prior_cost - result["total_cpp"]
+                if prior_safe_result is not None
+                else np.nan
+            )
+            economically_justified = bool(
+                prior_safe_result is not None
+                and prior_safe_result["is_safe"]
+                and result["is_safe"]
+                and cost_delta > 0
+            )
+            rows.append({
+                "ILI plan": _plan_label(result),
+                "ILI schedule": result.get("schedule_description", ""),
+                "ILI fixed/equivalent mean gap (years)": _chart_interval(result),
+                "ILI total cost ($M)": result["total_cpp"],
+                "ILI safety": _safety_label(result),
+                "Prior minimum-cost safe plan": (
+                    _plan_label(prior_safe_result) if prior_safe_result is not None else "Not found"
+                ),
+                "Prior safe cost ($M)": prior_cost,
+                "Prior safe cost − ILI cost / Net VoI ($M)": cost_delta,
+                "ILI economically justified?": "Yes" if economically_justified else "No",
+            })
+        return pd.DataFrame(rows)
 
 
     st.subheader("Planning Settings")
@@ -952,193 +1172,251 @@ def render_planner(*, show_header=True):
         total_joints = total_initial_cracks = 0
 
     custom_plan_enabled = False
-    custom_prior_per_joint = False
-    custom_schedule_config = None
+    custom_plan_config = {"prior": [], "ili": []}
     custom_schedule_error = None
+    cracked_joint_models = [joint for joint in joints if joint.get("cracks")]
+    cracked_joint_names = [joint["name"] for joint in cracked_joint_models]
 
     with st.expander("User-defined schedules", expanded=False):
         st.caption(
-            "Evaluate one named plan for each method in addition to the fixed-interval "
-            "comparison. Enter years such as 2, 10, 15. These plans are evaluated as "
-            "given; they are not added to the fixed-interval optimization curves."
+            "Add any number of named plans here. They run with the fixed-interval candidates "
+            "in the same comparison and use the same simulation engine. ILI is system-wide. "
+            "Prior excavation can be set for all cracked joints or separately by joint."
         )
         custom_plan_enabled = settings.checkbox(
-            "Enable user-defined plan evaluation", value=False
+            "Include user-defined plans in this comparison", value=False,
+            key="include_user_defined_plans",
         )
-        custom_ili_years = []
-        custom_prior_years = []
-        custom_joint_schedule_map = None
-        custom_prior_description = ""
-        custom_ili_description = ""
-        custom_prior_plan_name = "Plan 1_no_ILI"
-        custom_ili_plan_name = "Plan 1_ILI"
-        custom_joint_schedule_records = []
-
         if custom_plan_enabled:
-            name_cols = st.columns(2)
-            with name_cols[0]:
-                custom_prior_plan_name = settings.text_input(
-                    "Prior plan name", value="Plan 1_no_ILI"
+            plan_left, plan_right = st.columns(2)
+            with plan_left:
+                st.markdown("**Prior excavation plans**")
+                st.caption(
+                    "Enter one row per plan. To vary excavation by joint, repeat the plan name "
+                    "with a different joint on each row. Leave unused joints out of that plan."
                 )
-                custom_prior_per_joint = settings.checkbox(
-                    "Set a separate excavation schedule for each cracked joint",
-                    value=False,
+                prior_default_interval = min(max(1, int(prior_interval_start)), int(horizon))
+                prior_rows_key = "custom_prior_plan_rows_" + handoff["dataset_id"][:12]
+                prior_editor_key = "custom_prior_plan_editor_" + handoff["dataset_id"][:12]
+                default_prior_rows = [{
+                    "Plan name": "Plan 1_no_ILI",
+                    "Cracked joint": "All cracked joints",
+                    "Manual excavation years": "",
+                    "Fixed interval (years)": prior_default_interval,
+                }]
+                saved_prior_rows = st.session_state.get(prior_rows_key)
+                initial_prior_rows = (
+                    saved_prior_rows
+                    if isinstance(saved_prior_rows, list) and saved_prior_rows
+                    else default_prior_rows
                 )
-            with name_cols[1]:
-                custom_ili_plan_name = settings.text_input(
-                    "ILI plan name", value="Plan 1_ILI"
+                prior_editor = settings.data_editor(
+                    pd.DataFrame(initial_prior_rows),
+                    key=prior_editor_key,
+                    hide_index=True,
+                    num_rows="dynamic",
+                    width="stretch",
+                    column_config={
+                        "Plan name": st.column_config.TextColumn("Plan name", required=False),
+                        "Cracked joint": st.column_config.SelectboxColumn(
+                            "Cracked joint",
+                            options=["All cracked joints"] + cracked_joint_names,
+                            help="Use All cracked joints for one schedule across the system, or select one joint per row.",
+                            required=False,
+                        ),
+                        "Manual excavation years": st.column_config.TextColumn(
+                            "Manual excavation years",
+                            help="Comma-separated years, such as 3, 5, 20.",
+                            required=False,
+                        ),
+                        "Fixed interval (years)": st.column_config.NumberColumn(
+                            "Fixed interval (years)",
+                            min_value=1,
+                            max_value=int(horizon),
+                            step=1,
+                            format="%d",
+                            required=False,
+                            help="Enter either manual years or one repeat interval, not both.",
+                        ),
+                    },
                 )
-                default_ili_years = ", ".join(
+                prior_rows = prior_editor.to_dict(orient="records")
+                st.session_state[prior_rows_key] = prior_rows
+
+            with plan_right:
+                st.markdown("**ILI-informed plans**")
+                st.caption("Each ILI schedule applies to the full pipeline.")
+                ili_default_years = ", ".join(
                     str(year) for year in range(
                         int(ili_interval_start), int(horizon) + 1, int(ili_interval_start)
                     )
                 ) or str(min(int(ili_interval_start), int(horizon)))
-                custom_ili_year_text = settings.text_input(
-                    "ILI inspection years for the whole system (comma-separated)",
-                    value=default_ili_years,
-                    help="The same ILI years apply across the full pipeline.",
+                ili_rows_key = "custom_ili_plan_rows_" + handoff["dataset_id"][:12]
+                ili_editor_key = "custom_ili_plan_editor_" + handoff["dataset_id"][:12]
+                default_ili_rows = [{
+                    "Plan name": "Plan 1_ILI",
+                    "ILI inspection years": ili_default_years,
+                }]
+                saved_ili_rows = st.session_state.get(ili_rows_key)
+                initial_ili_rows = (
+                    saved_ili_rows
+                    if isinstance(saved_ili_rows, list) and saved_ili_rows
+                    else default_ili_rows
                 )
+                ili_editor = settings.data_editor(
+                    pd.DataFrame(initial_ili_rows),
+                    key=ili_editor_key,
+                    hide_index=True,
+                    num_rows="dynamic",
+                    width="stretch",
+                    column_config={
+                        "Plan name": st.column_config.TextColumn("Plan name", required=False),
+                        "ILI inspection years": st.column_config.TextColumn(
+                            "ILI inspection years",
+                            help="Comma-separated years, such as 2, 10, 15.",
+                            required=False,
+                        ),
+                    },
+                )
+                ili_rows = ili_editor.to_dict(orient="records")
+                st.session_state[ili_rows_key] = ili_rows
 
-            cracked_joint_models = [joint for joint in joints if joint.get("cracks")]
-            if custom_prior_per_joint:
-                st.caption(
-                    "Enter either manual excavation years or one fixed interval in each row. "
-                    "The table has one row per cracked physical joint. Crack-free groups are "
-                    "not assigned excavations in the prior method."
-                )
-                if not cracked_joint_models:
-                    st.info("No initially cracked joints are present in this saved dataset.")
-                else:
-                    default_prior_interval = min(
-                        max(1, int(prior_interval_start)), int(horizon)
-                    )
-                    default_rows = [
-                        {
-                            "Cracked joint": joint["name"],
-                            "Manual excavation years": "",
-                            "Fixed interval (years)": default_prior_interval,
-                        }
-                        for joint in cracked_joint_models
-                    ]
-                    schedule_field = "prior_joint_schedule_" + handoff["dataset_id"][:12]
-                    saved_planning = st.session_state.setdefault("static_planning_settings", {})
-                    saved_rows = saved_planning.get(schedule_field)
-                    joint_labels = [row["Cracked joint"] for row in default_rows]
-                    if (isinstance(saved_rows, list)
-                            and [str(row.get("Cracked joint", "")) for row in saved_rows] == joint_labels):
-                        editor_rows = saved_rows
-                    else:
-                        editor_rows = default_rows
-                    schedule_editor_key = "static_planning_editor_" + handoff["dataset_id"][:12]
-                    schedule_editor = st.data_editor(
-                        pd.DataFrame(editor_rows),
-                        key=schedule_editor_key,
-                        hide_index=True,
-                        disabled=["Cracked joint"],
-                        num_rows="fixed",
-                        width="stretch",
-                        column_config={
-                            "Cracked joint": st.column_config.TextColumn(
-                                "Cracked joint", help="Each row represents one physical pipe joint."
-                            ),
-                            "Manual excavation years": st.column_config.TextColumn(
-                                "Manual excavation years",
-                                help="Optional comma-separated years, such as 3, 5, 20.",
-                                required=False,
-                            ),
-                            "Fixed interval (years)": st.column_config.NumberColumn(
-                                "Fixed interval (years)",
-                                min_value=1,
-                                max_value=int(horizon),
-                                step=1,
-                                format="%d",
-                                required=False,
-                                help="Enter one interval, for example 5, to excavate at years 5, 10, 15, and so on.",
-                            ),
-                        },
-                    )
-                    custom_joint_schedule_records = schedule_editor.to_dict(orient="records")
-                    saved_planning[schedule_field] = custom_joint_schedule_records
-
-            prior_default_years = ", ".join(
-                str(year) for year in range(
-                    int(prior_interval_start), int(horizon) + 1, int(prior_interval_start)
-                )
-            ) or str(min(int(prior_interval_start), int(horizon)))
-            if not custom_prior_per_joint:
-                custom_prior_year_text = settings.text_input(
-                    "Prior excavation years for all cracked joints (comma-separated)",
-                    value=prior_default_years,
-                    help="This common prior schedule applies to each initially cracked joint.",
-                )
+            def _text_cell(value):
+                return "" if value is None or pd.isna(value) else str(value).strip()
 
             try:
-                custom_ili_years = parse_manual_years(
-                    custom_ili_year_text, "ILI inspection schedule", int(horizon)
-                )
-                if custom_prior_per_joint:
-                    if not cracked_joint_models:
-                        raise ValueError("Per-joint excavation schedules require at least one cracked joint.")
-                    custom_joint_schedule_map = {}
-                    descriptions = []
-                    for row in custom_joint_schedule_records:
-                        joint_name = str(row.get("Cracked joint", ""))
-                        manual_value = row.get("Manual excavation years", "")
-                        if manual_value is None or pd.isna(manual_value):
-                            manual_value = ""
-                        manual_text = str(manual_value).strip()
-                        fixed_value = row.get("Fixed interval (years)")
-                        if fixed_value is not None and pd.isna(fixed_value):
-                            fixed_value = None
-                        if manual_text and fixed_value is not None:
-                            raise ValueError(
-                                f"{joint_name}: enter manual years or a fixed interval, not both."
-                            )
-                        if manual_text:
-                            years = parse_manual_years(
-                                manual_text, f"{joint_name} schedule", int(horizon)
-                            )
-                            descriptions.append(f"{joint_name}: " + ", ".join(map(str, years)))
-                        elif fixed_value is not None:
-                            fixed_number = float(fixed_value)
-                            if not np.isfinite(fixed_number) or not fixed_number.is_integer():
-                                raise ValueError(f"{joint_name}: fixed interval must be a whole number of years.")
-                            interval_years = int(fixed_number)
-                            if interval_years < 1 or interval_years > int(horizon):
-                                raise ValueError(
-                                    f"{joint_name}: fixed interval must be from 1 to {int(horizon)} years."
-                                )
-                            years = list(range(interval_years, int(horizon) + 1, interval_years))
-                            descriptions.append(f"{joint_name}: every {interval_years} years")
-                        else:
-                            raise ValueError(
-                                f"{joint_name}: enter manual excavation years or a fixed interval."
-                            )
-                        custom_joint_schedule_map[joint_name] = years
-                    custom_prior_years = sorted({
-                        year for years in custom_joint_schedule_map.values() for year in years
-                    })
-                    custom_prior_description = "; ".join(descriptions)
-                else:
-                    custom_prior_years = parse_manual_years(
-                        custom_prior_year_text, "Prior excavation schedule", int(horizon)
+                if not cracked_joint_names and any(
+                    _text_cell(row.get("Plan name"))
+                    or _text_cell(row.get("Manual excavation years"))
+                    or (
+                        row.get("Fixed interval (years)") is not None
+                        and not pd.isna(row.get("Fixed interval (years)"))
                     )
-                    custom_prior_description = ", ".join(map(str, custom_prior_years))
-                custom_ili_description = ", ".join(map(str, custom_ili_years))
-                custom_schedule_config = {
-                    "prior_name": custom_prior_plan_name.strip() or "Prior plan",
-                    "ili_name": custom_ili_plan_name.strip() or "ILI plan",
-                    "prior_years": custom_prior_years,
-                    "prior_by_joint": custom_joint_schedule_map,
-                    "prior_description": custom_prior_description,
-                    "ili_years": custom_ili_years,
-                    "ili_description": custom_ili_description,
-                }
+                    for row in prior_rows
+                ):
+                    raise ValueError(
+                        "Prior excavation plans need at least one initially cracked joint in the selected dataset."
+                    )
+
+                prior_groups = {}
+                prior_names_casefold = {}
+                for row in prior_rows:
+                    name = _text_cell(row.get("Plan name"))
+                    target = _text_cell(row.get("Cracked joint"))
+                    manual_value = row.get("Manual excavation years", "")
+                    manual_text = _text_cell(manual_value)
+                    fixed_value = row.get("Fixed interval (years)")
+                    if fixed_value is not None and pd.isna(fixed_value):
+                        fixed_value = None
+                    if not name and not manual_text and fixed_value is None:
+                        continue
+                    if not name:
+                        raise ValueError("Every prior schedule row with inputs needs a plan name.")
+                    name_key = name.casefold()
+                    if name_key in prior_names_casefold and prior_names_casefold[name_key] != name:
+                        raise ValueError("Use the same capitalization for every row of a prior plan.")
+                    prior_names_casefold[name_key] = name
+                    if target not in (["All cracked joints"] + cracked_joint_names):
+                        raise ValueError(f"{name}: choose a valid cracked joint.")
+                    if manual_text and fixed_value is not None:
+                        raise ValueError(f"{name} / {target}: enter manual years or a fixed interval, not both.")
+                    if manual_text:
+                        years = parse_manual_years(
+                            manual_text, f"{name} / {target} schedule", int(horizon)
+                        )
+                    elif fixed_value is not None:
+                        fixed_number = float(fixed_value)
+                        if not np.isfinite(fixed_number) or not fixed_number.is_integer():
+                            raise ValueError(f"{name} / {target}: fixed interval must be a whole number of years.")
+                        fixed_interval = int(fixed_number)
+                        if fixed_interval < 1 or fixed_interval > int(horizon):
+                            raise ValueError(f"{name} / {target}: fixed interval must be from 1 to {int(horizon)} years.")
+                        years = list(range(fixed_interval, int(horizon) + 1, fixed_interval))
+                    else:
+                        raise ValueError(f"{name} / {target}: enter manual years or a fixed interval.")
+                    plan_rows = prior_groups.setdefault(name, [])
+                    if any(existing["target"] == target for existing in plan_rows):
+                        raise ValueError(f"{name}: {target} appears more than once.")
+                    plan_rows.append({"target": target, "years": years})
+
+                for name, rows in prior_groups.items():
+                    targets = [row["target"] for row in rows]
+                    if "All cracked joints" in targets and len(rows) > 1:
+                        raise ValueError(
+                            f"{name}: use either All cracked joints or individual joints, not both."
+                        )
+                    joint_schedules = {}
+                    descriptions = []
+                    if targets == ["All cracked joints"]:
+                        years = rows[0]["years"]
+                        joint_schedules = {joint_name: years for joint_name in cracked_joint_names}
+                        descriptions.append("All cracked joints: " + ", ".join(map(str, years)))
+                    else:
+                        for row in rows:
+                            joint_schedules[row["target"]] = row["years"]
+                            descriptions.append(
+                                row["target"] + ": " + ", ".join(map(str, row["years"]))
+                            )
+                    gaps = []
+                    weights = []
+                    for joint in cracked_joint_models:
+                        years = joint_schedules.get(joint["name"], [])
+                        gaps.append(float(horizon) / (len(years) + 1))
+                        weights.append(max(int(joint.get("count", 1)), 1))
+                    mean_gap = float(np.average(gaps, weights=weights))
+                    all_years = sorted({year for years in joint_schedules.values() for year in years})
+                    plan_id = hashlib.sha256(
+                        repr(("prior", name, joint_schedules)).encode()
+                    ).hexdigest()[:12]
+                    custom_plan_config["prior"].append({
+                        "candidate_id": "prior-user-" + plan_id,
+                        "plan_name": name,
+                        "years": all_years,
+                        "joint_schedules": joint_schedules,
+                        "schedule_description": "; ".join(descriptions),
+                        "chart_interval": mean_gap,
+                    })
+
+                ili_groups = {}
+                ili_names_casefold = {}
+                for row in ili_rows:
+                    name = _text_cell(row.get("Plan name"))
+                    years_value = row.get("ILI inspection years", "")
+                    years_text = _text_cell(years_value)
+                    if not name and not years_text:
+                        continue
+                    if not name:
+                        raise ValueError("Every ILI schedule row with inputs needs a plan name.")
+                    if name in ili_groups:
+                        raise ValueError(f"ILI plan name '{name}' appears more than once.")
+                    name_key = name.casefold()
+                    if name_key in ili_names_casefold:
+                        raise ValueError("ILI plan names must be unique, ignoring capitalization.")
+                    ili_names_casefold[name_key] = name
+                    if not years_text:
+                        raise ValueError(f"{name}: enter one or more ILI inspection years.")
+                    years = parse_manual_years(
+                        years_text, f"{name} ILI schedule", int(horizon)
+                    )
+                    ili_groups[name] = years
+
+                for name, years in ili_groups.items():
+                    plan_id = hashlib.sha256(repr(("ili", name, years)).encode()).hexdigest()[:12]
+                    custom_plan_config["ili"].append({
+                        "candidate_id": "ili-user-" + plan_id,
+                        "plan_name": name,
+                        "years": years,
+                        "joint_schedules": None,
+                        "schedule_description": ", ".join(map(str, years)),
+                        "chart_interval": float(horizon) / (len(years) + 1),
+                    })
+                if not custom_plan_config["prior"] and not custom_plan_config["ili"]:
+                    raise ValueError("Add at least one prior or ILI user-defined plan.")
             except (TypeError, ValueError) as exc:
                 custom_schedule_error = str(exc)
                 st.error(custom_schedule_error)
 
-
+    user_plan_count = sum(len(plans) for plans in custom_plan_config.values())
     expected_new_cracks = sum(
         joint["count"] * joint["birth_rate"] * horizon for joint in joints
     )
@@ -1151,24 +1429,35 @@ def render_planner(*, show_header=True):
         help="Poisson mean over all represented joints and the full analysis horizon.",
     )
     metric_columns[3].metric(
-        "Prior / ILI intervals", f"{len(prior_intervals)} / {len(ili_intervals)}"
+        "Fixed candidates (prior / ILI)",
+        f"{len(prior_intervals)} / {len(ili_intervals)}",
+        help=f"{len(custom_plan_config['prior'])} prior and {len(custom_plan_config['ili'])} ILI user-defined plans are additional candidates.",
     )
     metric_columns[4].metric("Monte Carlo samples", f"{samples:,}")
 
+    candidate_count = (
+        len(prior_intervals) + len(ili_intervals) + user_plan_count
+    )
     simulation_units = len(joints)
     work_units = (
         simulation_units
         * samples
         * (horizon + 1)
-        * max(len(prior_intervals) + len(ili_intervals), 1)
+        * max(candidate_count, 1)
     )
     actual_batch_size = effective_batch_size(joints, horizon, 1, sample_batch_size)
-    st.caption(f'Memory-efficient execution: up to {min(samples,actual_batch_size):,} samples per batch. '
-        'All requested samples are processed. Completed batches and intervals can be resumed in this session. '
-        'A server restart clears session checkpoints.')
+    st.caption(
+        f"Memory-efficient execution: up to {min(samples, actual_batch_size):,} samples per batch. "
+        "Fixed candidates and user-defined plans run sequentially through the same engine. "
+        "Each completed plan stores only annual and joint-level summary arrays; it does not retain "
+        "individual Monte Carlo histories. CPU time grows roughly with the number of plans."
+    )
     if work_units > 2_000_000:
-        st.info('This is a larger calculation. Batching reduces peak memory, but CPU time still increases with '
-            'samples, defects, analysis years and interval candidates. Shared hosting may remain a bottleneck.')
+        st.info(
+            "This is a larger calculation. Batching limits peak simulation memory, but CPU time "
+            "still increases with samples, defects, analysis years, and candidate plans. "
+            "Shared hosting may remain a bottleneck."
+        )
 
     model = {
         "samples": int(samples),
@@ -1217,56 +1506,102 @@ def render_planner(*, show_header=True):
         },
     }
 
-    custom_plan_signature = None
-    if custom_plan_enabled and custom_schedule_config is not None:
-        custom_plan_signature = hashlib.sha256(
-            repr((handoff["dataset_id"], model, joints, custom_schedule_config,
-                  pipeline_class)).encode()
-        ).hexdigest()
-
-    run_signature = hashlib.sha256(repr((handoff["dataset_id"], model, joints,
-        prior_intervals, ili_intervals, pipeline_class)).encode()).hexdigest()
+    run_signature = hashlib.sha256(
+        repr((
+            handoff["dataset_id"],
+            model,
+            joints,
+            prior_intervals,
+            ili_intervals,
+            custom_plan_config,
+            pipeline_class,
+        )).encode()
+    ).hexdigest()
     current_safety_signature = (
         pipeline_class,
         float(max_annual_leak_pof) if safety_criteria_valid else None,
         float(max_annual_burst_pof) if safety_criteria_valid else None,
     )
-    current_interval_signature = (tuple(prior_intervals), tuple(ili_intervals))
+    current_interval_signature = (
+        tuple(prior_intervals),
+        tuple(ili_intervals),
+        tuple(plan["candidate_id"] for plan in custom_plan_config["prior"]),
+        tuple(plan["candidate_id"] for plan in custom_plan_config["ili"]),
+    )
     run_disabled = (
         not joints
-        or not prior_intervals
-        or not ili_intervals
+        or (not prior_intervals and not custom_plan_config["prior"])
+        or (not ili_intervals and not custom_plan_config["ili"])
         or not safety_criteria_valid
+        or custom_schedule_error is not None
     )
-    job = st.session_state.get('integrated_planning_job')
-    resumable = bool(job and job.get('run_signature') == run_signature and not job.get('complete'))
+    job = st.session_state.get("integrated_planning_job")
+    resumable = bool(
+        job and job.get("run_signature") == run_signature and not job.get("complete")
+    )
+    prior_candidate_total = len(prior_intervals) + len(custom_plan_config["prior"])
+    ili_candidate_total = len(ili_intervals) + len(custom_plan_config["ili"])
     if resumable:
-        finished_prior, finished_ili = len(job.get('prior_results', [])), len(job.get('ili_results', []))
-        attempted = sum(checkpoint.get('processed', 0) for checkpoint in job.get('checkpoints', {}).values())
-        st.info(f'Unfinished run: {finished_prior}/{len(prior_intervals)} prior intervals and '
-            f'{finished_ili}/{len(ili_intervals)} ILI intervals completed. '
-            f'{attempted:,} candidate-samples processed. Resume to continue from the last completed batch.')
-        partial = [dict(Method=label, Interval=r['interval'], Cost=r['total_cpp'], Safe=r['is_safe'])
-            for label, key in [('Prior','prior_results'),('ILI-informed','ili_results')]
-            for r in job.get(key, [])]
+        finished_prior = len(job.get("prior_results", []))
+        finished_ili = len(job.get("ili_results", []))
+        attempted = sum(
+            checkpoint.get("processed", 0)
+            for checkpoint in job.get("checkpoints", {}).values()
+        )
+        st.info(
+            f"Unfinished run: {finished_prior}/{prior_candidate_total} prior plans and "
+            f"{finished_ili}/{ili_candidate_total} ILI plans completed. "
+            f"{attempted:,} candidate-samples processed. Resume to continue from the last completed batch."
+        )
+        partial = [
+            {
+                "Method": label,
+                "Plan": _plan_label(result),
+                "Schedule": result.get("schedule_description", ""),
+                "Equivalent mean gap (years)": result.get("chart_interval", result["interval"]),
+                "Cost ($M)": result["total_cpp"],
+                "Safe": result["is_safe"],
+            }
+            for label, key in [("Prior", "prior_results"), ("ILI-informed", "ili_results")]
+            for result in job.get(key, [])
+        ]
         if partial:
-            st.download_button('Download completed intervals (partial run)',
-                pd.DataFrame(partial).to_csv(index=False), 'completed_planning_intervals.csv', 'text/csv')
+            st.download_button(
+                "Download completed plans (partial run)",
+                pd.DataFrame(partial).to_csv(index=False),
+                "completed_planning_plans.csv",
+                "text/csv",
+            )
+
     if st.button(
         "Resume prior + pre-posterior comparison" if resumable else "Run prior + pre-posterior comparison",
-        type="primary", disabled=run_disabled, key='run_integrated_planning_comparison'
+        type="primary",
+        disabled=run_disabled,
+        key="run_integrated_planning_comparison",
     ):
         if not resumable:
-            job = dict(run_signature=run_signature, prior_results=[], ili_results=[], checkpoints={}, complete=False)
-            st.session_state['integrated_planning_job'] = job
+            job = dict(
+                run_signature=run_signature,
+                prior_results=[],
+                ili_results=[],
+                checkpoints={},
+                complete=False,
+            )
+            st.session_state["integrated_planning_job"] = job
         try:
-            with st.spinner("Running the prior excavation schedules…"):
+            with st.spinner("Running prior excavation candidates…"):
                 prior_results, prior_log = run_interval_study(
                     joints, prior_intervals, model, EXCAVATION_DECISION_MODE, job
                 )
-            with st.spinner("Running the ILI-informed schedules…"):
+                prior_results, prior_log = run_user_defined_studies(
+                    joints, custom_plan_config["prior"], model, EXCAVATION_DECISION_MODE, job
+                )
+            with st.spinner("Running ILI-informed candidates…"):
                 ili_results, ili_log = run_interval_study(
                     joints, ili_intervals, model, ILI_DECISION_MODE, job
+                )
+                ili_results, ili_log = run_user_defined_studies(
+                    joints, custom_plan_config["ili"], model, ILI_DECISION_MODE, job
                 )
             st.session_state["integrated_planning_comparison"] = {
                 "prior_results": prior_results,
@@ -1282,158 +1617,20 @@ def render_planner(*, show_header=True):
                 "interval_signature": current_interval_signature,
                 "prior_intervals": prior_intervals,
                 "ili_intervals": ili_intervals,
+                "user_plan_config": custom_plan_config,
                 "dataset_id": handoff["dataset_id"],
                 "run_signature": run_signature,
-
             }
-            job['complete'] = True
+            job["complete"] = True
         except Exception as exc:
-            st.error('The calculation did not finish. Completed batches are kept in this session. '
-                'Select Resume to continue; changing inputs starts a new study.')
+            st.error(
+                "The calculation did not finish. Completed plans and batches are kept "
+                "in this session. Select Resume to continue; changing inputs starts a new study."
+            )
             st.exception(exc)
 
 
-    if custom_plan_enabled and custom_schedule_config is not None:
-        st.markdown("#### User-defined plan evaluation")
-        st.caption(
-            "This evaluates the two schedules exactly as entered. The prior plan may "
-            "have different excavation years by joint; ILI remains system-wide."
-        )
-        custom_job = st.session_state.get("integrated_custom_schedule_job")
-        custom_resumable = bool(
-            custom_job
-            and custom_job.get("signature") == custom_plan_signature
-            and not custom_job.get("complete")
-        )
-        if st.button(
-            "Resume user-defined plans" if custom_resumable else "Run user-defined plans",
-            type="secondary",
-            disabled=not joints or not safety_criteria_valid or custom_schedule_error is not None,
-            key="run_integrated_custom_schedule_plans",
-        ):
-            if not custom_job or custom_job.get("signature") != custom_plan_signature:
-                custom_job = {
-                    "signature": custom_plan_signature,
-                    "checkpoints": {},
-                    "results": {},
-                    "complete": False,
-                }
-                st.session_state["integrated_custom_schedule_job"] = custom_job
-            progress = st.progress(0, text="Preparing user-defined plan simulations…")
-            custom_runs = [
-                (
-                    "prior",
-                    custom_schedule_config["prior_name"],
-                    EXCAVATION_DECISION_MODE,
-                    custom_schedule_config["prior_years"],
-                    custom_schedule_config["prior_by_joint"],
-                ),
-                (
-                    "ili",
-                    custom_schedule_config["ili_name"],
-                    ILI_DECISION_MODE,
-                    custom_schedule_config["ili_years"],
-                    None,
-                ),
-            ]
-            try:
-                for run_index, (run_key, plan_name, decision_mode, years, joint_map) in enumerate(custom_runs):
-                    if run_key in custom_job["results"]:
-                        continue
-                    sim = copy.deepcopy(model["sim"])
-                    sim.pop("inspection_interval", None)
-                    sim["inspection_times"] = list(years)
-                    if joint_map is not None:
-                        sim["joint_inspection_times"] = joint_map
-                    else:
-                        sim.pop("joint_inspection_times", None)
-                    checkpoint = custom_job["checkpoints"].setdefault(run_key, {})
-
-                    def report(done, requested, retained, index=run_index, name=plan_name):
-                        progress.progress(
-                            (index + done / requested) / len(custom_runs),
-                            text=f"{name}: {done:,}/{requested:,} samples processed "
-                                 f"({retained:,} retained).",
-                        )
-
-                    raw = run_batched_flexible_simulation(
-                        "equidistant",
-                        model["horizon"],
-                        1,
-                        model["samples"],
-                        joints,
-                        model["costs"],
-                        sim,
-                        [model["depth_error"], model["length_error"]],
-                        model["q_pod"],
-                        default_birth_rate=model["birth_rate"],
-                        property_seed=model["seed"],
-                        crack_length_std=model["initial_length_std"],
-                        crack_depth_std=model["initial_depth_std"],
-                        track_debug=False,
-                        decision_mode=decision_mode,
-                        batch_size=model["batch_size"],
-                        state=checkpoint,
-                        on_progress=report,
-                    )
-                    result = unpack_result(raw, "User-defined schedule", decision_mode, sim)
-                    result["plan_name"] = plan_name
-                    result["schedule_description"] = (
-                        custom_schedule_config["prior_description"]
-                        if run_key == "prior"
-                        else custom_schedule_config["ili_description"]
-                    )
-                    custom_job["results"][run_key] = result
-                custom_job["complete"] = True
-                progress.progress(1.0, text="User-defined plans complete")
-            except Exception as exc:
-                st.error(
-                    "The user-defined plan run did not finish. Completed batches are saved "
-                    "in this session; select Resume to continue."
-                )
-                st.exception(exc)
-
-        custom_job = st.session_state.get("integrated_custom_schedule_job")
-        if custom_job and custom_job.get("signature") == custom_plan_signature:
-            custom_results = custom_job.get("results", {})
-            if "prior" in custom_results and "ili" in custom_results:
-                result_rows = []
-                for run_key in ("prior", "ili"):
-                    result = custom_results[run_key]
-                    result_rows.append({
-                        "Plan": result["plan_name"],
-                        "Intervention years": result["schedule_description"],
-                        "Expected lifecycle cost ($M)": result["total_cpp"],
-                        "Failure cost Cf ($M)": result["failure_cost"],
-                        "Repair cost Cr ($M)": result["repair_cost"],
-                        "ILI cost Ci ($M)": result["inspection_cost"],
-                        "Safety": "Safe" if result["is_safe"] else "Unsafe",
-                        "Peak annual PfL": float(np.max(result["leak_annual_pof"])),
-                        "Peak annual PfB": float(np.max(result["burst_annual_pof"])),
-                    })
-                custom_table = pd.DataFrame(result_rows)
-                st.dataframe(
-                    custom_table.style.format({
-                        "Expected lifecycle cost ($M)": "{:.4f}",
-                        "Failure cost Cf ($M)": "{:.4f}",
-                        "Repair cost Cr ($M)": "{:.4f}",
-                        "ILI cost Ci ($M)": "{:.4f}",
-                        "Peak annual PfL": "{:.3e}",
-                        "Peak annual PfB": "{:.3e}",
-                    }),
-                    hide_index=True,
-                    width="stretch",
-                )
-                st.caption(
-                    "Safe means both peak annual whole-pipeline probabilities stay within "
-                    "the selected limits over the full horizon. These manual plans are "
-                    "separate from the fixed-interval cost-optimal search."
-                )
-            elif not custom_job.get("complete"):
-                completed = ", ".join(sorted(custom_results)) or "none yet"
-                st.info(f"Saved user-defined plan progress. Completed plans: {completed}.")
-
-    study = st.session_state.get("integrated_planning_comparison")
+        study = st.session_state.get("integrated_planning_comparison")
     if study and study.get("run_signature") != run_signature:
         st.info("The saved dataset or planning settings changed. Run the comparison again to update the results.")
         study = None
@@ -1452,37 +1649,70 @@ def render_planner(*, show_header=True):
 
         st.subheader("Cost-optimal and safe scheduling results")
         st.caption("Source dataset: " + study["dataset_id"][:10])
-        with st.expander('Pipeline joint reliability profile', expanded=True):
-            method = st.radio('Map planning method', ['Prior excavation', 'ILI-informed'], horizontal=True)
-            candidates = prior_results if method == 'Prior excavation' else ili_results
-            preferred = prior_safe if method == 'Prior excavation' else ili_safe
-            intervals = [r['interval'] for r in candidates]
-            selected = st.selectbox('Map interval (years)', intervals,
-                index=intervals.index(preferred['interval']) if preferred else 0)
-            result = next(r for r in candidates if r['interval'] == selected)
-            st.caption('Red: above a selected POF limit. Yellow: 50–100% of a limit. '
-                'Green: below 50%. A 1 km window slides by one nominal joint; boundary '
-                'joints are included in full. These are reliability indicators, without '
-                'consequences. The scheduling safety check remains the existing whole-route '
-                'calculation; this display is not a verified CSA compliance assessment.')
+        with st.expander("Pipeline joint reliability profile", expanded=True):
+            method = st.radio(
+                "Map planning method",
+                ["Prior excavation", "ILI-informed"],
+                horizontal=True,
+            )
+            candidates = prior_results if method == "Prior excavation" else ili_results
+            preferred = prior_safe if method == "Prior excavation" else ili_safe
+            preferred_index = next(
+                (i for i, candidate in enumerate(candidates)
+                 if preferred is not None and candidate["candidate_id"] == preferred["candidate_id"]),
+                0,
+            )
+            selected_index = st.selectbox(
+                "Map plan",
+                options=list(range(len(candidates))),
+                index=preferred_index,
+                format_func=lambda index: _plan_label(candidates[index]),
+                key=f"map_plan_choice_{method}_{study['run_signature'][:8]}",
+            )
+            result = candidates[selected_index]
+            st.caption(
+                "Red: above a selected POF limit. Yellow: 50–100% of a limit. "
+                "Green: below 50%. A 1 km window slides by one nominal joint; boundary "
+                "joints are included in full. These are reliability indicators, without "
+                "consequences. The scheduling safety check remains the existing whole-route "
+                "calculation; this display is not a verified CSA compliance assessment."
+            )
             try:
                 windows, spatial = sliding_window_reliability(result, handoff)
-                st_folium(reliability_map(handoff['project']['route'], spatial), height=450,
-                    returned_objects=[], key=f'integrated_result_map_{method}_{selected}')
-                st.markdown('**Sliding one KM results**')
-                st.dataframe(windows.sort_values('limit_ratio', ascending=False), hide_index=True)
-                st.download_button('Download sliding 1 km results CSV', windows.to_csv(index=False),
-                    'planning_sliding_1km_results.csv', 'text/csv')
-                with st.expander('Individual joint results'):
+                st_folium(
+                    reliability_map(handoff["project"]["route"], spatial),
+                    height=450,
+                    returned_objects=[],
+                    key=f"integrated_result_map_{method}_{result['candidate_id']}",
+                )
+                st.markdown("**Sliding one KM results**")
+                st.dataframe(windows.sort_values("limit_ratio", ascending=False), hide_index=True)
+                st.download_button(
+                    "Download sliding 1 km results CSV",
+                    windows.to_csv(index=False),
+                    "planning_sliding_1km_results.csv",
+                    "text/csv",
+                )
+                with st.expander("Individual joint results"):
                     st.dataframe(spatial, hide_index=True)
-                    st.download_button('Download joint reliability CSV', spatial.to_csv(index=False),
-                        'planning_joint_reliability.csv', 'text/csv')
+                    st.download_button(
+                        "Download joint reliability CSV",
+                        spatial.to_csv(index=False),
+                        "planning_joint_reliability.csv",
+                        "text/csv",
+                    )
             except ValueError as exc:
-                st.warning('The probability map is unavailable for this run: ' + str(exc))
-        retained = [(r['retained_samples'], r['requested_samples']) for r in prior_results + ili_results]
-        st.caption('Time-zero survival conditioning: '
-            + ', '.join(f'{n}/{total} samples retained' for n,total in sorted(set(retained)))
-            + '. Future planning results are conditional on initial survival.')
+                st.warning("The probability map is unavailable for this plan: " + str(exc))
+
+        retained = [
+            (result["retained_samples"], result["requested_samples"])
+            for result in prior_results + ili_results
+        ]
+        st.caption(
+            "Time-zero survival conditioning: "
+            + ", ".join(f"{n}/{total} samples retained" for n, total in sorted(set(retained)))
+            + ". Future planning results are conditional on initial survival."
+        )
         st.caption(
             f"{study['pipeline_class']} safety criteria: "
             f"PfL ≤ {study['max_annual_leak_pof']:.1e}; "
@@ -1493,34 +1723,70 @@ def render_planner(*, show_header=True):
                 prior_cost_optimal, prior_safe, ili_cost_optimal, ili_safe
             )
         )
-        with st.expander('Why an interval is Safe or Unsafe'):
-            st.caption('Safety is checked at every simulated year over the full analysis horizon, '
-                'including years after the first inspection. The table identifies the first '
-                'exceedance and the peak values used for that decision.')
-            safety_table = pd.DataFrame(interval_safety_rows(prior_results, 'Prior excavation')
-                + interval_safety_rows(ili_results, 'ILI-informed'))
-            st.dataframe(safety_table.style.format({
-                'Peak annual whole-pipeline PfL': '{:.3e}',
-                'Peak annual whole-pipeline PfB': '{:.3e}',
-                'First limit exceedance (year)': '{:.0f}',
-            }, na_rep='—'), hide_index=True, width='stretch')
-            st.download_button('Download interval safety diagnostics', safety_table.to_csv(index=False),
-                'planning_interval_safety.csv', 'text/csv')
-            st.caption(f'Joint/group details below use the map selection: {method}, '
-                f'{selected:g}-year interval. Each group is evaluated alone over the same '
-                f'{pipe_length:.3f} km route; these group values cannot be added together.')
+        with st.expander("Why a plan is Safe or Unsafe"):
+            st.caption(
+                "Safety is checked at every simulated year over the full analysis horizon, "
+                "including years after the first intervention. The table identifies the first "
+                "exceedance and peak values used for each plan."
+            )
+            safety_rows = []
+            for method_label, method_results in [
+                ("Prior excavation", prior_results),
+                ("ILI-informed", ili_results),
+            ]:
+                for candidate in method_results:
+                    row = interval_safety_rows([candidate], method_label)[0]
+                    row["Plan"] = _plan_label(candidate)
+                    row["Schedule"] = candidate.get("schedule_description", "")
+                    row["Plan type"] = (
+                        "User-defined" if candidate.get("is_user_defined") else "Fixed interval"
+                    )
+                    safety_rows.append(row)
+            safety_table = pd.DataFrame(safety_rows)
+            st.dataframe(
+                safety_table.style.format({
+                    "Peak annual whole-pipeline PfL": "{:.3e}",
+                    "Peak annual whole-pipeline PfB": "{:.3e}",
+                    "First limit exceedance (year)": "{:.0f}",
+                    "Interval (years)": "{:.2f}",
+                }, na_rep="—"),
+                hide_index=True,
+                width="stretch",
+            )
+            st.download_button(
+                "Download plan safety diagnostics",
+                safety_table.to_csv(index=False),
+                "planning_plan_safety.csv",
+                "text/csv",
+            )
+            st.caption(
+                f"Joint/group details use the map selection: {method}, {_plan_label(result)}. "
+                f"Each group is evaluated alone over the same {pipe_length:.3f} km route; "
+                "these group values cannot be added together."
+            )
             groups_table = pd.DataFrame(joint_safety_rows(result, joints, pipe_length))
-            st.dataframe(groups_table.style.format({
-                'Peak group PfL / km-year': '{:.3e}',
-                'Peak group PfB / km-year': '{:.3e}',
-                'Approx. one-event increment / km': '{:.3e}',
-            }), hide_index=True, width='stretch')
-            st.caption('Initially crack-free groups can govern the result when new cracks initiate. '
-                'Their common marginal POF is estimated from the retained samples and combined '
-                'using the number of physical joints represented. The one-event increment is '
-                'a sampling-resolution indicator, not a confidence interval.')
-            st.download_button('Download joint/group probability diagnostics', groups_table.to_csv(index=False),
-                'planning_joint_group_probabilities.csv', 'text/csv')
+            st.dataframe(
+                groups_table.style.format({
+                    "Peak group PfL / km-year": "{:.3e}",
+                    "Peak group PfB / km-year": "{:.3e}",
+                    "Approx. one-event increment / km": "{:.3e}",
+                }),
+                hide_index=True,
+                width="stretch",
+            )
+            st.caption(
+                "Initially crack-free groups can govern the result when new cracks initiate. "
+                "Their common marginal POF is estimated from the retained samples and combined "
+                "using the number of physical joints represented. The one-event increment is "
+                "a sampling-resolution indicator, not a confidence interval."
+            )
+            st.download_button(
+                "Download joint/group probability diagnostics",
+                groups_table.to_csv(index=False),
+                "planning_joint_group_probabilities.csv",
+                "text/csv",
+            )
+
         if voi is not None:
             if voi["voi"] > 0:
                 voi_class = "voi-positive"
@@ -1531,7 +1797,7 @@ def render_planner(*, show_header=True):
             st.html(
                 f'<div class="voi-card {voi_class}">'
                 '<div class="voi-label">Net VoI of ILI</div>'
-                f'<div class="voi-value">${voi["voi"]:.4f}M</div>'
+                '<div class="voi-value">' + "$" + f'{voi["voi"]:.4f}M</div>'
                 f'<div class="voi-message">{voi["interpretation"]}</div>'
                 "</div>"
             )
@@ -1549,10 +1815,10 @@ def render_planner(*, show_header=True):
             if not ili_has_safe:
                 missing.append("ILI-informed")
             st.warning(
-                "Minimum-cost safe interval: **Not found** for "
+                "Minimum-cost safe plan: **Not found** for "
                 + " and ".join(missing)
-                + " within the tested range. The cost-optimal interval is still shown above "
-                + "with its Safe/Unsafe status."
+                + " within the tested fixed intervals and user-defined schedules. "
+                "The lowest-cost plan is still shown above with its Safe/Unsafe status."
             )
 
         comparison_tab, prior_tab, ili_tab = st.tabs(
@@ -1560,20 +1826,53 @@ def render_planner(*, show_header=True):
         )
         with comparison_tab:
             show_comparison_cost_figure(prior_results, ili_results)
+            combined_candidates = prior_results + ili_results
+            default_profile_indices = []
+            for preferred_result in (prior_safe, ili_safe):
+                if preferred_result is not None:
+                    matching_index = next(
+                        index for index, candidate in enumerate(combined_candidates)
+                        if candidate["candidate_id"] == preferred_result["candidate_id"]
+                    )
+                    default_profile_indices.append(matching_index)
+            if not default_profile_indices and combined_candidates:
+                default_profile_indices = [0]
+            selected_profile_indices = st.multiselect(
+                "Annual POF plans to compare across prior and ILI methods",
+                options=list(range(len(combined_candidates))),
+                default=default_profile_indices,
+                format_func=lambda index: (
+                    ("Prior — " if combined_candidates[index]["decision_mode"] == EXCAVATION_DECISION_MODE
+                     else "ILI — ")
+                    + _plan_label(combined_candidates[index])
+                ),
+                key=f"combined_annual_pof_plans_{study['run_signature'][:8]}",
+            )
+            if selected_profile_indices:
+                show_figure(
+                    annual_pof_figure(
+                        [combined_candidates[index] for index in selected_profile_indices],
+                        "prior and ILI-informed",
+                        include_method=True,
+                    )
+                )
             st.caption(
-                "Each tested ILI interval is compared with the minimum-cost safe prior "
-                "excavation solution. ILI is economically justified only when that ILI "
-                "interval is safe and has a lower expected lifecycle cost."
+                "Every ILI plan is compared with the minimum-cost safe prior excavation plan. "
+                "ILI is economically justified only when the ILI plan is safe and its expected "
+                "lifecycle cost is lower than the prior safe plan. User-defined schedules are "
+                "included in this comparison."
             )
             combined = comparison_table(prior_safe, ili_results)
             combined["Dataset ID"] = study["dataset_id"]
             st.dataframe(
                 combined.style.format(
                     {
+                        "ILI fixed/equivalent mean gap (years)": "{:.2f}",
+                        "ILI total cost ($M)": "{:.6f}",
                         "Prior safe cost ($M)": format_optional_decimal,
-                        "ILI cost ($M)": "{:.6f}",
-                        "Cost difference / VoI ($M)": format_optional_decimal,
-                    }
+                        "Prior safe cost − ILI cost / Net VoI ($M)": format_optional_decimal,
+                    },
+                    na_rep="—",
                 ),
                 width="stretch",
                 hide_index=True,
@@ -1581,51 +1880,74 @@ def render_planner(*, show_header=True):
             st.download_button(
                 "Download VoI comparison",
                 combined.to_csv(index=False).encode("utf-8"),
-                "ili_intervals_vs_prior_safe.csv",
+                "ili_plans_vs_prior_safe.csv",
                 "text/csv",
             )
 
         with prior_tab:
             prior_columns = st.columns(5)
             prior_columns[0].metric(
-                "Cost-optimal interval",
-                f"{prior_cost_optimal['interval']} years",
+                "Cost-optimal plan",
+                _plan_label(prior_cost_optimal),
             )
             prior_columns[1].metric(
                 "Lowest Cprior",
-                f"${prior_cost_optimal['total_cpp']:.4f}M",
+                "$" + f"{prior_cost_optimal['total_cpp']:.4f}M",
             )
             prior_columns[2].metric(
                 "Safety at cost optimum",
                 _safety_label(prior_cost_optimal),
             )
             prior_columns[3].metric(
-                "Safe interval",
-                f"{prior_safe['interval']} years" if prior_safe else "Not found",
+                "Minimum-cost safe plan",
+                _plan_label(prior_safe) if prior_safe else "Not found",
             )
             prior_columns[4].metric(
                 "Safe Cprior",
-                f"${prior_safe['total_cpp']:.4f}M" if prior_safe else "—",
+                "$" + f"{prior_safe['total_cpp']:.4f}M" if prior_safe else "—",
             )
             show_selectable_cost_figure(
                 prior_results,
                 "Prior lifecycle cost versus excavation interval",
-                "Excavation interval (years)",
+                "Fixed interval / equivalent mean gap (years)",
                 "Cprior",
                 "prior_cost_selection",
             )
-            show_figure(annual_pof_figure(prior_cost_optimal, "Excavation"))
+            prior_default_index = next(
+                i for i, candidate in enumerate(prior_results)
+                if candidate["candidate_id"] == prior_cost_optimal["candidate_id"]
+            )
+            prior_selected_indices = st.multiselect(
+                "Annual POF profiles to compare",
+                options=list(range(len(prior_results))),
+                default=[prior_default_index],
+                format_func=lambda index: _plan_label(prior_results[index]),
+                key=f"prior_annual_pof_plans_{study['run_signature'][:8]}",
+            )
+            if prior_selected_indices:
+                show_figure(
+                    annual_pof_figure(
+                        [prior_results[index] for index in prior_selected_indices],
+                        "prior excavation",
+                    )
+                )
+            else:
+                st.info("Select at least one prior plan to display annual POF.")
             prior_table = results_table(prior_results, "Cprior")
             prior_table["Dataset ID"] = study["dataset_id"]
             st.dataframe(
                 prior_table.style.format(
                     {
+                        "Fixed/equivalent mean gap (years)": "{:.2f}",
                         "Total Cprior ($M)": "{:.6f}",
                         "Cf — failure ($M)": "{:.6f}",
                         "Cr — repair ($M)": "{:.6f}",
                         "ILI inspection ($M)": "{:.6f}",
                         "Expected repairs": "{:.4f}",
-                    }
+                        "Peak annual whole-pipeline PfL": "{:.3e}",
+                        "Peak annual whole-pipeline PfB": "{:.3e}",
+                    },
+                    na_rep="—",
                 ),
                 width="stretch",
                 hide_index=True,
@@ -1642,44 +1964,67 @@ def render_planner(*, show_header=True):
         with ili_tab:
             ili_columns = st.columns(5)
             ili_columns[0].metric(
-                "Cost-optimal interval",
-                f"{ili_cost_optimal['interval']} years",
+                "Cost-optimal plan",
+                _plan_label(ili_cost_optimal),
             )
             ili_columns[1].metric(
                 "Lowest Cpp",
-                f"${ili_cost_optimal['total_cpp']:.4f}M",
+                "$" + f"{ili_cost_optimal['total_cpp']:.4f}M",
             )
             ili_columns[2].metric(
                 "Safety at cost optimum",
                 _safety_label(ili_cost_optimal),
             )
             ili_columns[3].metric(
-                "Safe interval",
-                f"{ili_safe['interval']} years" if ili_safe else "Not found",
+                "Minimum-cost safe plan",
+                _plan_label(ili_safe) if ili_safe else "Not found",
             )
             ili_columns[4].metric(
                 "Safe Cpp",
-                f"${ili_safe['total_cpp']:.4f}M" if ili_safe else "—",
+                "$" + f"{ili_safe['total_cpp']:.4f}M" if ili_safe else "—",
             )
             show_selectable_cost_figure(
                 ili_results,
                 "Pre-posterior lifecycle cost versus ILI interval",
-                "ILI interval (years)",
+                "Fixed interval / equivalent mean gap (years)",
                 "Cpp",
                 "ili_cost_selection",
             )
-            show_figure(annual_pof_figure(ili_cost_optimal, "ILI inspection"))
+            ili_default_index = next(
+                i for i, candidate in enumerate(ili_results)
+                if candidate["candidate_id"] == ili_cost_optimal["candidate_id"]
+            )
+            ili_selected_indices = st.multiselect(
+                "Annual POF profiles to compare",
+                options=list(range(len(ili_results))),
+                default=[ili_default_index],
+                format_func=lambda index: _plan_label(ili_results[index]),
+                key=f"ili_annual_pof_plans_{study['run_signature'][:8]}",
+            )
+            if ili_selected_indices:
+                show_figure(
+                    annual_pof_figure(
+                        [ili_results[index] for index in ili_selected_indices],
+                        "ILI-informed",
+                    )
+                )
+            else:
+                st.info("Select at least one ILI-informed plan to display annual POF.")
             ili_table = results_table(ili_results, "Cpp")
             ili_table["Dataset ID"] = study["dataset_id"]
             st.dataframe(
                 ili_table.style.format(
                     {
+                        "Fixed/equivalent mean gap (years)": "{:.2f}",
                         "Total Cpp ($M)": "{:.6f}",
                         "Cf — failure ($M)": "{:.6f}",
                         "Cr — repair ($M)": "{:.6f}",
                         "ILI inspection ($M)": "{:.6f}",
                         "Expected repairs": "{:.4f}",
-                    }
+                        "Peak annual whole-pipeline PfL": "{:.3e}",
+                        "Peak annual whole-pipeline PfB": "{:.3e}",
+                    },
+                    na_rep="—",
                 ),
                 width="stretch",
                 hide_index=True,
