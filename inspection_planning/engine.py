@@ -1310,7 +1310,13 @@ def run_simulation(
             previous_checkpoint = current_checkpoint
         k += 1
 
+    # Count the type-2 surcharge separately, including when its entered price is zero.
+    type2_repair_means = np.zeros(nt)
+    for count, actions in zip(group_counts, action_arr):
+        type2_repair_means += count * np.count_nonzero(actions == 2, axis=0) / nx_filtered
+
     debug_data = {
+        "type2_repair_means": type2_repair_means,
         "times": times,
         "crack_depths": D_debug,
         "crack_lengths": L_debug,
