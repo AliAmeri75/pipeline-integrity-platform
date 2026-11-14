@@ -35,6 +35,7 @@ def render_planner(*, show_header=True):
     from inspection_planning.schedule_editor import (
         parse_manual_years, prior_candidates, render_ili_rows, render_prior_plans,
     )
+    from inspection_planning.cost_sensitivity import annual_counts, cost_quantities, reprice, scenario_prices
     from inspection_planning.settings import PlanningSettings
     from inspection_planning.execution import run_batched_flexible_simulation, effective_batch_size, EXECUTION_REVISION
     from inspection_planning.diagnostics import interval_safety_rows, joint_safety_rows
@@ -168,7 +169,7 @@ def render_planner(*, show_header=True):
         "The existing method conditions the simulation on survival at time zero. "
         "Initial-condition assessment remains in Preliminary Analysis.")
 
-    def unpack_result(raw, interval, decision_mode, sim_params):
+    def unpack_result(raw, interval, decision_mode, sim_params, joints, costs):
         (
             times, leak_pof, burst_pof, leak_hazard, burst_hazard, inspections,
             cpp, cff, crr, cii, is_safe, unsafe_times,
@@ -189,6 +190,7 @@ def render_planner(*, show_header=True):
             "inspections": inspections,
             "cpp": cpp,
             "total_cpp": float(np.sum(cpp)),
+            "cost_quantities": cost_quantities(raw, joints, costs, decision_mode == ILI_DECISION_MODE),
             "failure_cost": float(np.sum(cff)),
             "repair_cost": float(np.sum(crr)),
             "inspection_cost": float(np.sum(cii)),
@@ -258,7 +260,7 @@ def render_planner(*, show_header=True):
                     state=checkpoint,
                     on_progress=report,
                 )
-            result = unpack_result(raw, interval, decision_mode, sim)
+            result = unpack_result(raw, interval, decision_mode, sim, joints, model["costs"])
             result.update(
                 candidate_id=candidate_id,
                 plan_name=f"Fixed interval — {interval} years",
@@ -328,7 +330,7 @@ def render_planner(*, show_header=True):
                     state=checkpoint,
                     on_progress=report,
                 )
-            result = unpack_result(raw, plan["chart_interval"], decision_mode, sim)
+            result = unpack_result(raw, plan["chart_interval"], decision_mode, sim, joints, model["costs"])
             result.update(
                 candidate_id=candidate_id,
                 plan_name=plan["plan_name"],
@@ -1505,11 +1507,56 @@ def render_planner(*, show_header=True):
 
     study = st.session_state.get("integrated_planning_comparison")
     if study and study.get("run_signature") != run_signature:
-        st.info("The saved dataset or planning settings changed. Run the comparison again to update the results.")
+        if any("cost_quantities" not in plan for plan in study["prior_results"] + study["ili_results"]):
+            st.info("Run the comparison once with the updated planner to record the annual event counts for cost sensitivity.")
+        else:
+            st.info("The saved dataset or planning settings changed. Run the comparison again to update the results.")
         study = None
     if study:
         prior_results = study["prior_results"]
         ili_results = study["ili_results"]
+        st.subheader("Cost-optimal and safe scheduling results")
+        if all("cost_quantities" in result for result in prior_results + ili_results):
+            with st.expander("Cost sensitivity analysis"):
+                prices, changed = scenario_prices(model["costs"], joints, run_signature)
+                if changed:
+                    prior_results = [reprice(result, prices) for result in prior_results]
+                    ili_results = [reprice(result, prices) for result in ili_results]
+                    rows = []
+                    for method, original, scenario in [
+                        ("Prior excavation (Cprior)", study["prior_results"], prior_results),
+                        ("ILI-informed (Cpp)", study["ili_results"], ili_results),
+                    ]:
+                        before, _ = select_optimal_result(original)
+                        after, _ = select_optimal_result(scenario)
+                        rows.append({
+                            "Method": method,
+                            "Original safe plan": _plan_label(before) if before else "Not found",
+                            "Scenario safe plan": _plan_label(after) if after else "Not found",
+                            "Original cost ($M)": before["total_cpp"] if before else None,
+                            "Scenario cost ($M)": after["total_cpp"] if after else None,
+                            "Change ($M)": after["total_cpp"] - before["total_cpp"] if after and before else None,
+                        })
+                    st.markdown("**Lowest-cost safe plan at each set of prices**")
+                    st.dataframe(rows, hide_index=True, width="stretch", column_config={
+                        name: st.column_config.NumberColumn(format="%.4f")
+                        for name in ("Original cost ($M)", "Scenario cost ($M)", "Change ($M)")
+                    })
+                candidates = prior_results + ili_results
+                selected = st.selectbox(
+                    "Annual event counts for plan", range(len(candidates)),
+                    format_func=lambda i: (
+                        ("Prior excavation" if i < len(prior_results) else "ILI-informed")
+                        + " · " + _plan_label(candidates[i])
+                    ),
+                    key=f"cost_sensitivity_counts_{run_signature}",
+                )
+                st.caption("Counts are expected events across the whole route in each year. "
+                           "Both repair types incur the base cost. Type 2 also incurs the additional cost. "
+                           "One ILI run covers the full pipeline length.")
+                st.dataframe(annual_counts(candidates[selected], joints, pipe_length), hide_index=True, width="stretch")
+        else:
+            st.info("Run this study once with the updated planner to enable cost sensitivity.")
         prior_cost_optimal = select_lowest_cost_result(prior_results)
         ili_cost_optimal = select_lowest_cost_result(ili_results)
         prior_safe, prior_has_safe = select_optimal_result(prior_results)
@@ -1520,7 +1567,6 @@ def render_planner(*, show_header=True):
             else None
         )
 
-        st.subheader("Cost-optimal and safe scheduling results")
         st.caption("Source dataset: " + study["dataset_id"][:10])
         with st.expander("Pipeline joint reliability profile", expanded=True):
             method = st.radio(
