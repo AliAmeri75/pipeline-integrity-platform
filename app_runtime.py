@@ -8,13 +8,13 @@ import importlib
 import sys
 
 
-SHARED_INPUT_REVISION = 'whole-route-safety-v5'
+SHARED_INPUT_REVISION = 'static-plan-cost-sensitivity-v1'
 SHARED_INPUT_MODULES = (
     'profile_data', 'assessment_project', 'profile_visuals', 'profile_map', 'project_editor',
     'exploration_map', 'deterministic_analysis', 'threat_workspaces',
     'inspection_planning.engine', 'inspection_planning.execution',
     'inspection_planning.diagnostics', 'inspection_planning.risk_map',
-    'inspection_planning.planner_ui',
+    'inspection_planning.cost_sensitivity', 'inspection_planning.planner_ui',
 )
 
 
