@@ -7,7 +7,7 @@ import importlib
 import app_runtime
 from platform_ui import apply_global_style
 
-if app_runtime.SHARED_INPUT_REVISION != 'whole-route-safety-v5':
+if app_runtime.SHARED_INPUT_REVISION != 'static-plan-cost-sensitivity-v1':
     importlib.reload(app_runtime)
 app_runtime.refresh_shared_input_modules()
 
