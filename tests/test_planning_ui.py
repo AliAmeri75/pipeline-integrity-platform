@@ -87,7 +87,7 @@ class PlanningUITests(unittest.TestCase):
         from inspection_planning.engine import run_flexible_simulation
         app = self.app(validate_project(sample_project()))
         values = {'Monte Carlo samples': 100, 'Analysis horizon (years)': 5,
-            'Last excavation interval (years)': 5, 'Last ILI interval (years)': 5,
+            'Last fixed excavation interval (years)': 5, 'Last fixed ILI interval (years)': 5,
             'Mean depth growth, α (mm/year)': .12, 'Std. α': .02,
             'Type 1 depth criterion (%WT)': 60., 'Type 2 pressure factor': 1.15,
             'Recoat growth factor, df1': .2, 'Recoat effective period (years)': 4,
@@ -129,7 +129,7 @@ class PlanningUITests(unittest.TestCase):
         self.assertTrue(any('Connected to the saved' in e.value for e in app.success))
         self.assertFalse(any(n.label == 'Pipe length (km)' for n in app.number_input))
         for label,value in [('Monte Carlo samples',100),('Analysis horizon (years)',5),
-                            ('Last excavation interval (years)',5),('Last ILI interval (years)',5)]:
+                            ('Last fixed excavation interval (years)',5),('Last fixed ILI interval (years)',5)]:
             next(n for n in app.number_input if n.label==label).set_value(value)
         app.run()
         next(b for b in app.button if b.label=='Run prior + pre-posterior comparison').click().run()
@@ -140,9 +140,18 @@ class PlanningUITests(unittest.TestCase):
         self.assertEqual(len(study['prior_results']),1)
         self.assertEqual(len(study['ili_results']),1)
         self.assertTrue(any(s.value=='Cost-optimal and safe scheduling results' for s in app.subheader))
-        self.assertTrue(any(e.label=='Why an interval is Safe or Unsafe' for e in app.expander))
+        self.assertTrue(any(e.label=='Why a plan is Safe or Unsafe' for e in app.expander))
         self.assertTrue(any('Peak annual whole-pipeline PfB' in d.value.columns for d in app.dataframe))
         self.assertEqual(project_signature(app.session_state['assessment_project']), before)
+        original = study['ili_results'][0]['total_cpp']
+        with patch('inspection_planning.engine.run_flexible_simulation',
+                   side_effect=AssertionError('Changing prices must reuse the simulated events')):
+            self.number(app, 'ILI ($M per km per run)').set_value(1.).run()
+            self.assertFalse(app.exception)
+            self.assertTrue(any('Scenario safe plan' in d.value.columns for d in app.dataframe))
+            next(b for b in app.button if b.label == 'Restore original costs').click().run()
+            self.assertFalse(app.exception)
+            self.assertEqual(app.session_state['integrated_planning_comparison']['ili_results'][0]['total_cpp'], original)
         changed = deepcopy(project)
         changed['summary'].loc[0,'Feature location (m)'] += 1
         app.session_state['assessment_project'] = changed
@@ -174,9 +183,9 @@ class PlanningUITests(unittest.TestCase):
         from inspection_planning import engine
         app = self.app(validate_project(sample_project()))
         for label, value in {'Monte Carlo samples':100, 'Samples per batch':50,
-            'Analysis horizon (years)':5, 'First excavation interval (years)':1,
-            'Last excavation interval (years)':2, 'Excavation interval step (years)':1,
-            'First ILI interval (years)':1, 'Last ILI interval (years)':1}.items():
+            'Analysis horizon (years)':5, 'First fixed excavation interval (years)':1,
+            'Last fixed excavation interval (years)':2, 'Fixed excavation interval step (years)':1,
+            'First fixed ILI interval (years)':1, 'Last fixed ILI interval (years)':1}.items():
             self.number(app,label).set_value(value)
         app.run()
         original, calls = engine.run_flexible_simulation, []
@@ -189,7 +198,7 @@ class PlanningUITests(unittest.TestCase):
             next(b for b in app.button if b.label=='Run prior + pre-posterior comparison').click().run()
         job = app.session_state['integrated_planning_job']
         self.assertEqual(len(job['prior_results']),1)
-        self.assertEqual(job['checkpoints']['excavation:2']['processed'],50)
+        self.assertEqual(job['checkpoints']['excavation:fixed:2']['processed'],50)
         app.run()
         with patch.object(engine,'run_flexible_simulation',wraps=original) as resumed:
             next(b for b in app.button if b.label=='Resume prior + pre-posterior comparison').click().run()
