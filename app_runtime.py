@@ -8,7 +8,7 @@ import importlib
 import sys
 
 
-SHARED_INPUT_REVISION = 'static-plan-cost-sensitivity-v1'
+SHARED_INPUT_REVISION = 'static-plan-cost-sensitivity-v2'
 SHARED_INPUT_MODULES = (
     'profile_data', 'assessment_project', 'profile_visuals', 'profile_map', 'project_editor',
     'exploration_map', 'deterministic_analysis', 'threat_workspaces',
