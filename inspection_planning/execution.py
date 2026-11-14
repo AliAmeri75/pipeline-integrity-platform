@@ -16,7 +16,7 @@ import numpy as np
 from inspection_planning import engine
 
 
-EXECUTION_REVISION = 'fixed-interval-pof-v6-manual-schedules'
+EXECUTION_REVISION = 'fixed-interval-v7-cost-quantities'
 MEAN_OUTPUTS = (6, 7, 8, 9, 12, 13, 14)
 
 
@@ -77,7 +77,7 @@ def _pooled_result(state, joints, costs, sim):
         probability_basis='At least one failure of each mode per joint realization',
         annual_probability_basis='Actual failures in each operating time step, including repeat failures',
         completed_batches=state['batches'], execution_revision=EXECUTION_REVISION)
-    for key in ('joint_leak_event_means', 'joint_burst_event_means'):
+    for key in ('joint_leak_event_means', 'joint_burst_event_means', 'type2_repair_means'):
         if key + '_sum' in state:
             outputs[16][key] = state[key + '_sum'] / retained
     return tuple(outputs)
@@ -158,7 +158,7 @@ def run_batched_flexible_simulation(
             update['joint_burst_counts'] = state.get('joint_burst_counts', 0.) + weight * np.asarray(debug['joint_burst_pofs'])
             update['joint_leak_step_counts'] = state.get('joint_leak_step_counts', 0.) + weight * np.asarray(debug['joint_leak_step_pofs'])
             update['joint_burst_step_counts'] = state.get('joint_burst_step_counts', 0.) + weight * np.asarray(debug['joint_burst_step_pofs'])
-            for key in ('joint_leak_event_means', 'joint_burst_event_means'):
+            for key in ('joint_leak_event_means', 'joint_burst_event_means', 'type2_repair_means'):
                 if key in debug:
                     update[key + '_sum'] = state.get(key + '_sum', 0.) + weight * np.asarray(debug[key])
         # Commit small sufficient statistics, then release the batch's raw outputs.
