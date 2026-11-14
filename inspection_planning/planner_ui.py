@@ -1517,7 +1517,7 @@ def render_planner(*, show_header=True):
         ili_results = study["ili_results"]
         st.subheader("Cost-optimal and safe scheduling results")
         if all("cost_quantities" in result for result in prior_results + ili_results):
-            with st.expander("Cost sensitivity analysis"):
+            with st.expander("Cost sensitivity analysis", key="planning_cost_panel", on_change="rerun"):
                 prices, changed = scenario_prices(model["costs"], joints, run_signature)
                 if changed:
                     prior_results = [reprice(result, prices) for result in prior_results]
